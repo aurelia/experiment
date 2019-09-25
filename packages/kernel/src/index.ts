@@ -21,6 +21,7 @@ export {
   InterfaceSymbol,
   InstanceProvider,
   Resolved,
+  importAs
 } from './di';
 export {
   Class,

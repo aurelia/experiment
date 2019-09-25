@@ -3,7 +3,8 @@ import { TestContext } from '.';
 import { CustomElement, Aurelia } from '@aurelia/runtime';
 import { HTMLTestContext } from './html-test-context';
 
-export function setup<T>(template: string | Node,
+export function setup<T>(
+    template?: string | Node,
     $class?: Constructable<T>,
     registrations: any[] = [],
     autoStart: boolean = true,
@@ -14,7 +15,7 @@ export function setup<T>(template: string | Node,
     const root = ctx.doc.body.appendChild(ctx.doc.createElement('div'));
     const host = root.appendChild(ctx.createElement('app'));
     const au = new Aurelia(container);
-    const App = CustomElement.define({ name: 'app', template }, $class || class { } as Constructable<T>);
+    const App = template === undefined ? $class! : CustomElement.define({ name: 'app', template: template }, $class || class { } as Constructable<T>);
     const component = new App();
 
     let startPromise: Promise<unknown> = Promise.resolve();

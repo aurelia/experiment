@@ -20,8 +20,12 @@ export interface IDefaultableInterfaceSymbol<K> extends InterfaceSymbol<K> {
 // This interface exists only to break a circular type referencing issue in the IServiceLocator interface.
 // Otherwise IServiceLocator references IResolver, which references IContainer, which extends IServiceLocator.
 interface IResolverLike<C, K = any> {
-  resolve(handler: C, requestor: C): Resolved<K>;
-  getFactory?(container: C): (K extends Constructable ? IFactory<K> : never) | null;
+  resolve(handler: C, requestor: C, key?: Key): Resolved<K>;
+  getFactory?(container: C, key?: Key): (K extends Constructable ? IFactory<K> : never) | null;
+}
+
+export function importAs(name: string, resource: any) {
+  return Registration.alias(resource, resource.kind == null ? name : resource.kind.keyFrom(name));
 }
 
 export interface IResolver<K = any> extends IResolverLike<IContainer, K> { }
@@ -40,7 +44,7 @@ export interface IFactory<T extends Constructable = any> {
 
 export interface IServiceLocator {
   has<K extends Key>(key: K | Key, searchAncestors: boolean): boolean;
-  get<K extends Key>(key: K | Key): Resolved<K>;
+  get<K extends Key>(key: K | Key, previousKey?: K | Key): Resolved<K>;
   getAll<K extends Key>(key: K | Key): readonly Resolved<K>[];
 }
 
@@ -73,14 +77,14 @@ export type Key = PropertyKey | object | InterfaceSymbol | Constructable | IReso
 
 export type Resolved<K> = (
   K extends InterfaceSymbol<infer T>
-    ? T
-    : K extends Constructable
-      ? InstanceType<K>
-      : K extends IResolverLike<infer T1, any>
-        ? T1 extends Constructable
-            ? InstanceType<T1>
-            : T1
-        : K
+  ? T
+  : K extends Constructable
+  ? InstanceType<K>
+  : K extends IResolverLike<infer T1, any>
+  ? T1 extends Constructable
+  ? InstanceType<T1>
+  : T1
+  : K
 );
 
 export type Injectable<T = {}> = Constructable<T> & { inject?: Key[] };
@@ -424,7 +428,7 @@ export class Resolver implements IResolver, IRegistration {
     return container.registerResolver(key || this.key, this);
   }
 
-  public resolve(handler: IContainer, requestor: IContainer): any {
+  public resolve(handler: IContainer, requestor: IContainer, key?: Key): any {
     switch (this.strategy) {
       case ResolverStrategy.instance:
         return this.state;
@@ -441,15 +445,20 @@ export class Resolver implements IResolver, IRegistration {
       case ResolverStrategy.callback:
         return (this.state as ResolveCallback)(handler, requestor, this);
       case ResolverStrategy.array:
-        return (this.state as IResolver[])[0].resolve(handler, requestor);
+        if (key === void 0) { return (this.state as IResolver[])[0].resolve(handler, requestor); }
+        const resolver = (this.state as Resolver[]).find(y => y.state === key);
+        if (resolver == null) {
+          return (this.state as IResolver[])[0].resolve(handler, requestor);
+        }
+        return resolver.resolve(handler, requestor);
       case ResolverStrategy.alias:
-        return handler.get(this.state);
+        return handler.get(this.state, key);
       default:
         throw Reporter.error(6, this.strategy);
     }
   }
 
-  public getFactory(container: IContainer): IFactory | null {
+  public getFactory(container: IContainer, key?: Key): IFactory | null {
     switch (this.strategy) {
       case ResolverStrategy.singleton:
       case ResolverStrategy.transient:
@@ -459,7 +468,11 @@ export class Resolver implements IResolver, IRegistration {
         if (resolver == null || resolver.getFactory === void 0) {
           return null;
         }
-        return resolver.getFactory(container);
+        return resolver.getFactory(container, this.key);
+      case ResolverStrategy.array:
+        const matchedResolver = (this.state as Resolver[]).find(x => x.state == key);
+        if (matchedResolver == null) { return null; }
+        return container.getFactory(matchedResolver.state);
       default:
         return null;
     }
@@ -679,11 +692,11 @@ export class Container implements IContainer {
     return this.resolvers.has(key)
       ? true
       : searchAncestors && this.parent != null
-      ? this.parent.has(key, true)
-      : false;
+        ? this.parent.has(key, true)
+        : false;
   }
 
-  public get<K extends Key>(key: K): Resolved<K> {
+  public get<K extends Key>(key: K, previousKey?: K): Resolved<K> {
     validateKey(key);
 
     if ((key as IResolver).resolve !== void 0) {
@@ -704,7 +717,10 @@ export class Container implements IContainer {
 
         current = current.parent;
       } else {
-        return resolver.resolve(current, this);
+        if (previousKey !== void 0 && (resolver as Resolver).strategy === ResolverStrategy.array) {
+          return resolver.resolve(current, this, previousKey);
+        }
+        return resolver.resolve(current, this, key);
       }
     }
 

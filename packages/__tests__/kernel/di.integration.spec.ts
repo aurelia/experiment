@@ -148,9 +148,9 @@ describe('DI.createInterface() -> container.get()', function () {
         get.calls,
         [
           [IAlias],
-          [ITransient],
+          [ITransient, undefined],
           [IAlias],
-          [ITransient],
+          [ITransient, IAlias],
         ],
         `get.calls`,
       );
@@ -172,9 +172,9 @@ describe('DI.createInterface() -> container.get()', function () {
         get.calls,
         [
           [IAlias],
-          [ISingleton],
+          [ISingleton, undefined],
           [IAlias],
-          [ISingleton],
+          [ISingleton, IAlias],
         ],
         `get.calls`,
       );
@@ -197,9 +197,9 @@ describe('DI.createInterface() -> container.get()', function () {
         get.calls,
         [
           [IAlias],
-          [IInstance],
+          [IInstance, undefined],
           [IAlias],
-          [IInstance],
+          [IInstance, IAlias],
         ],
         `get.calls`,
       );
@@ -231,9 +231,9 @@ describe('DI.createInterface() -> container.get()', function () {
         get.calls,
         [
           [IAlias],
-          [ICallback],
+          [ICallback, undefined],
           [IAlias],
-          [ICallback],
+          [ICallback, IAlias],
         ],
         `get.calls`,
       );
@@ -254,9 +254,9 @@ describe('DI.createInterface() -> container.get()', function () {
         get.calls,
         [
           ['alias'],
-          [ITransient],
+          [ITransient, 'alias'],
           ['alias'],
-          [ITransient],
+          [ITransient, 'alias'],
         ],
         `get.calls`,
       );
@@ -277,9 +277,9 @@ describe('DI.createInterface() -> container.get()', function () {
         get.calls,
         [
           ['alias'],
-          [ISingleton],
+          [ISingleton, 'alias'],
           ['alias'],
-          [ISingleton],
+          [ISingleton, 'alias'],
         ],
         `get.calls`,
       );
@@ -301,9 +301,9 @@ describe('DI.createInterface() -> container.get()', function () {
         get.calls,
         [
           ['alias'],
-          [IInstance],
+          [IInstance, 'alias'],
           ['alias'],
-          [IInstance],
+          [IInstance, 'alias'],
         ],
         `get.calls`,
       );
@@ -333,9 +333,9 @@ describe('DI.createInterface() -> container.get()', function () {
         get.calls,
         [
           ['alias'],
-          [ICallback],
+          [ICallback, 'alias'],
           ['alias'],
-          [ICallback],
+          [ICallback, 'alias'],
         ],
         `get.calls`,
       );

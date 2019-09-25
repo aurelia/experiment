@@ -6,17 +6,16 @@ import {
     alias
 } from '@aurelia/runtime';
 import { TestConfiguration, assert, setup } from '@aurelia/testing';
-import { Registration } from '@aurelia/kernel';
+import { Registration, importAs } from '@aurelia/kernel';
 
 interface Person { firstName?: string, lastName?: string, fullName?: string };
 const app = class { value = 'wOOt' };
 
 describe('custom-elements', function () {
 
-
     const registrations = [TestConfiguration];
 
-    // custom elements
+    //custom elements
     it('01.', async function () {
         const { tearDown, appHost } = setup(`<template><name-tag name="bigopon"></name-tag></template>`, undefined, registrations);
         assert.strictEqual(appHost.textContent, 'bigopon', `host.textContent`);
@@ -391,6 +390,58 @@ describe('custom-elements', function () {
             assert.strictEqual(options.appHost.textContent, 'wOOt'.repeat(4));
             await options.tearDown();
         });
+    });
 
-    })
+    describe('08. Runtime Aliasing', async function () {
+
+        @customElement({ name: 'foo2', template: `<template>\${value}</template>` })
+        class Foo2 {
+            @bindable()
+            public value: any;
+            public value1: any;
+            @bindable()
+            public value2: any;
+            public binding() { this.valueChanged(); }
+            public valueChanged(): void {
+                this.value1 = `${this.value}1`;
+            }
+        }
+
+        @customElement({ name: 'foo2', template: `<template>\${value}-test</template>` })
+        class Foo3 {
+            @bindable()
+            public value: any;
+            public value1: any;
+            @bindable()
+            public value2: any;
+            public binding() { this.valueChanged(); }
+            public valueChanged(): void {
+                this.value1 = `${this.value}1`;
+            }
+        }
+
+        @customElement({
+            name: 'foo1',
+            dependencies: [importAs('woot2', Foo3), importAs('woot', Foo2)],
+            template: `<woot value.bind="value"></woot><woot2 value.bind="value"></woot2>`,
+        })
+        class Foo1 {
+            @bindable()
+            public value: any;
+            public value1: any;
+            public binding() { this.valueChanged(); }
+            public valueChanged(): void {
+                this.value1 = `${this.value}1`;
+            }
+        }
+
+        const resources: any[] = [Foo1];
+        it('Simple containerless', async function () {
+            const options = await setup('<template><foo1 value.bind="value"></foo1>${value}</template>', app, resources);
+            assert.strictEqual(options.appHost.textContent, 'wOOtwOOt-testwOOt');
+            await options.tearDown();
+        });
+    });
+
+
 });

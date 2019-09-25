@@ -26,7 +26,7 @@ export interface IResourceType<TDef, TProto, TClass extends ConstructableClass<T
 }
 
 export interface IResourceDescriptions {
-  find<TDef, TProto>(kind: IResourceKind<TDef, TProto>, name: string): ResourceDescription<TDef> | null;
+  find<TDef extends IResourceDefinition, TProto>(kind: IResourceKind<TDef, TProto>, name: string): ResourceDescription<TDef> | null;
   create<TDef, TProto>(kind: IResourceKind<TDef, TProto>, name: string): TProto | null;
 }
 
@@ -37,7 +37,28 @@ export class RuntimeCompilationResources implements IResourceDescriptions {
     this.context = context;
   }
 
-  public find<TDef, TProto>(kind: IResourceKind<TDef, TProto>, name: string): ResourceDescription<TDef> | null {
+  private cloneAndRenameTemplateDefinition<TDef extends IResourceDefinition>(definition: TDef, name: string): TDef {
+    const definitionClone: Partial<TDef> = {};
+    for (const key in definition) {
+      const value = definition[key];
+      if (Array.isArray(value)) {
+        definitionClone[key] = [...value] as any;
+        continue;
+      }
+
+      if (value instanceof Object) {
+        definitionClone[key] = { ...value };
+        continue;
+      }
+      
+      definitionClone[key] = value;
+    }
+
+    definitionClone.name = name;
+    return definitionClone as TDef;
+  }
+
+  public find<TDef extends IResourceDefinition, TProto>(kind: IResourceKind<TDef, TProto>, name: string): ResourceDescription<TDef> | null {
     const key = kind.keyFrom(name);
     const resourceLookup = (this.context as unknown as { resourceLookup: Record<string, IResolver | undefined | null> }).resourceLookup;
     let resolver = resourceLookup[key];
@@ -49,8 +70,17 @@ export class RuntimeCompilationResources implements IResourceDescriptions {
       const factory = resolver.getFactory(this.context);
 
       if (factory != null) {
-        const description = (factory.Type as IResourceType<TDef, TProto>).description;
-        return description === undefined ? null : description;
+
+        const { aliases, description } = (factory.Type as IResourceType<TDef, TProto> & IResourceDefinition);
+        if (description === void 0) {
+          return null;
+        }
+        if (description.name !== name &&
+          (aliases === void 0 || !aliases.includes(name)) &&
+          (description.aliases === void 0 || !description.aliases.includes(name))) {
+          return this.cloneAndRenameTemplateDefinition(description, name);
+        }
+        return description;
       }
     }
 

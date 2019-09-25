@@ -474,5 +474,5 @@ export function registerAliases<T, F>(aliases: string[], resource: IResourceKind
   for (let i = 0, ii = aliases.length; i < ii; ++i) {
     Registration.alias(key, resource.keyFrom(aliases[i])).register(container);
   }
-
+  
 }

@@ -1,4 +1,4 @@
-import { kebabCase } from '@aurelia/kernel';
+import { kebabCase, Registration } from '@aurelia/kernel';
 import modifyCode, { ModifyCodeResult } from 'modify-code';
 import * as path from 'path';
 import { IFileUnit, IPreprocessOptions } from './options';
@@ -20,20 +20,19 @@ export function preprocessHtmlTemplate(unit: IFileUnit, options: IPreprocessOpti
 
   if (unit.filePair) {
     const basename = path.basename(unit.filePair, path.extname(unit.filePair));
-    if (!deps.some(dep => options.cssExtensions.some(e => dep === './' + basename + e))) {
+    if (!deps.some(dep => options.cssExtensions.some(e => dep.from === './' + basename + e))) {
       // implicit dep ./foo.css for foo.html
-      deps.unshift('./' + unit.filePair);
+      deps.unshift({ from: './' + unit.filePair });
     }
   }
-
   if (options.defaultShadowOptions && !shadowMode) {
     shadowMode = options.defaultShadowOptions.mode;
   }
 
   const viewDeps: string[] = [];
   const statements: string[] = [];
-  let registrationImported = false;
-
+  let printRegisterImport = false;
+  let importAsImported = false;
   // Turn off ShadowDOM for invalid element
   if (!name.includes('-') && shadowMode) {
     shadowMode = null;
@@ -44,27 +43,38 @@ export function preprocessHtmlTemplate(unit: IFileUnit, options: IPreprocessOpti
   }
 
   deps.forEach((d, i) => {
-    const ext = path.extname(d);
+    const ext = path.extname(d.from);
     if (ext && ext !== '.js' && ext !== '.ts' && !options.templateExtensions.includes(ext)) {
       // Wrap all other unknown resources (including .css, .scss) in defer.
-      if (!registrationImported) {
-        statements.push(`import { Registration } from '@aurelia/kernel';\n`);
-        registrationImported = true;
-      }
       const isCssResource = options.cssExtensions.indexOf(ext) !== -1;
-      let stringModuleId = d;
-
+      let stringModuleId = d.from;
+      printRegisterImport = true;
       if (isCssResource && shadowMode && options.stringModuleWrap) {
-        stringModuleId = options.stringModuleWrap(d);
+        stringModuleId = options.stringModuleWrap(d.from);
       }
-
       statements.push(`import d${i} from ${s(stringModuleId)};\n`);
       viewDeps.push(`Registration.defer('${isCssResource ? '.css' : ext}', d${i})`);
     } else {
-      statements.push(`import * as d${i} from ${s(d)};\n`);
-      viewDeps.push(`d${i}`);
+
+      if (d.resourceName == null) {
+        statements.push(`import * as d${i} from ${s(d.from)};\n`);
+      }
+      else {
+        statements.push(`import {${d.resourceName} as d${i}} from ${s(d.from)};\n`);
+      }
+
+      if (d.as == null) {
+        viewDeps.push(`d${i}`);
+        return;
+      }
+      importAsImported = true;
+      viewDeps.push(`importAs(\'${d.as}\',d${i})`);
     }
   });
+
+  if (printRegisterImport || importAsImported) {
+    statements.unshift(`import { Registration${importAsImported ? ', importAs' : ''} } from '@aurelia/kernel';\n`);
+  }
 
   const m = modifyCode('', unit.path);
   m.append(`import { CustomElement } from '@aurelia/runtime';\n`);

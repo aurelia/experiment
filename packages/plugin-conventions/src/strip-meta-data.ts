@@ -2,17 +2,23 @@ import { kebabCase } from '@aurelia/kernel';
 import { BindingMode, IBindableDescription } from '@aurelia/runtime';
 import { DefaultTreeElement, ElementLocation, parseFragment } from 'parse5';
 
-interface IStrippedHtml {
+export interface IStrippedHtml {
   html: string;
-  deps: string[];
+  deps: IDependency[];
   shadowMode: 'open' | 'closed' | null;
   containerless: boolean;
   bindables: Record<string, IBindableDescription>;
   aliases: string[];
 }
 
+export interface IDependency {
+  resourceName?: string;
+  as?: string;
+  from: string;
+}
+
 export function stripMetaData(rawHtml: string): IStrippedHtml {
-  const deps: string[] = [];
+  const deps: IDependency[] = [];
   let shadowMode: 'open' | 'closed' | null = null;
   let containerless: boolean = false;
   const bindables: Record<string, IBindableDescription> = {};
@@ -54,7 +60,6 @@ export function stripMetaData(rawHtml: string): IStrippedHtml {
     lastIdx = end;
   });
   html += rawHtml.slice(lastIdx);
-
   return { html, deps, shadowMode, containerless, bindables, aliases };
 }
 
@@ -103,9 +108,13 @@ function stripAttribute(node: DefaultTreeElement, tagName: string, attributeName
 // <require from="./foo">
 // <import from="./foo"></import>
 // <require from="./foo"></require>
-function stripImport(node: DefaultTreeElement, cb: (dep: string | undefined, ranges: [number, number][]) => void) {
+function stripImport(node: DefaultTreeElement, cb: (dep: IDependency | undefined, ranges: [number, number][]) => void) {
   return stripTag(node, ['import', 'require'], (attrs, ranges) => {
-    cb(attrs.from, ranges);
+    cb({
+      from: attrs.from,
+      as: attrs.as,
+      resourceName: attrs['resource-name']
+    }, ranges);
   });
 }
 

@@ -344,6 +344,7 @@ export {
 export {
   AttributeDefinition,
   AttributeInstruction,
+  AttributeFilter,
   BindableDefinitions,
   BindableSource,
   buildTemplateDefinition,

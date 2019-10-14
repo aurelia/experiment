@@ -30,6 +30,7 @@ import {
   State,
   TargetedInstruction,
   TemplateDefinition,
+  AttributeFilter,
 } from '@aurelia/runtime';
 import {
   createElement,
@@ -48,6 +49,7 @@ export class Compose<T extends INode = Node> {
   public static readonly description: Required<ITemplateDefinition> = Object.freeze({
     name: 'au-compose',
     template: null,
+    captureAttrs: AttributeFilter.all,
     cache: 0,
     build: Object.freeze({ compiler: 'default', required: false }),
     bindables: Object.freeze({

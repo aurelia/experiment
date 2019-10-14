@@ -758,7 +758,8 @@ export const AuDOMTest = {
     return new HydrateElementInstruction(
       name,
       bindings.map(([from, to]) => new ToViewBindingInstruction(parseExpression(from), to)),
-      parts
+      parts,
+      undefined
     );
   },
   createLetInstruction(bindings: [string, string][], toBindingContext: boolean = false): LetElementInstruction {

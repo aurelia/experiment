@@ -79,9 +79,17 @@ export interface IBuildInstruction {
   compiler?: string;
 }
 
+export enum AttributeFilter {
+  none            = 0b0_000,
+  bindingCommands = 0b0_001,
+  plain           = 0b0_010,
+  all             = 0b0_011,
+}
+
 export interface ITemplateDefinition extends IResourceDefinition {
   cache?: '*' | number;
   template?: unknown;
+  captureAttrs?: AttributeFilter | string[];
   instructions?: ITargetedInstruction[][];
   dependencies?: Key[];
   build?: IBuildInstruction;
@@ -269,6 +277,7 @@ class DefaultTemplateDefinition implements Required<ITemplateDefinition> {
   public cache: '*' | number;
   public aliases: string[];
   public template: unknown;
+  public captureAttrs: AttributeFilter | string[];
   public instructions: ITargetedInstruction[][];
   public dependencies: IRegistry[];
   public build: IBuildInstruction;
@@ -286,6 +295,7 @@ class DefaultTemplateDefinition implements Required<ITemplateDefinition> {
   public constructor() {
     this.name = 'unnamed';
     this.template = null;
+    this.captureAttrs = AttributeFilter.none;
     this.isStrictBinding = false;
     this.cache = 0;
     this.build = buildNotRequired;
@@ -311,8 +321,9 @@ const templateDefinitionAssignables = [
   'build',
   'containerless',
   'shadowOptions',
+  'hasSlots',
+  'captureAttrs',
   'isStrictBinding',
-  'hasSlots'
 ];
 
 const templateDefinitionArrays = [
@@ -345,6 +356,7 @@ export function buildTemplateDefinition(
   ctor: CustomElementConstructor | null,
   name: string | null,
   template: unknown,
+  captureAttrs?: AttributeFilter | string[],
   cache?: number | '*' | null,
   build?: IBuildInstruction | boolean | null,
   bindables?: Record<string, IBindableDescription> | null,
@@ -363,6 +375,7 @@ export function buildTemplateDefinition(
   ctor: CustomElementConstructor | null,
   nameOrDef: string | ITemplateDefinition | null,
   template?: unknown | null,
+  captureAttrs?: AttributeFilter | string[],
   cache?: number | '*' | null,
   build?: IBuildInstruction | boolean | null,
   bindables?: Record<string, IBindableDescription> | null,
@@ -384,19 +397,20 @@ export function buildTemplateDefinition(
   /* deepscan-disable */
   const argLen = arguments.length;
   switch (argLen) {
-    case 16: if (isStrictBinding != null) def.isStrictBinding = isStrictBinding;
-    case 15: if (aliases != null) def.aliases = toArray(aliases);
-    case 14: if (childrenObservers !== null) def.childrenObservers = { ...childrenObservers };
-    case 13: if (strategy != null) def.strategy = ensureValidStrategy(strategy);
-    case 12: if (hasSlots != null) def.hasSlots = hasSlots;
-    case 11: if (shadowOptions != null) def.shadowOptions = shadowOptions;
-    case 10: if (containerless != null) def.containerless = containerless;
-    case 9: if (surrogates != null) def.surrogates = toArray(surrogates);
-    case 8: if (dependencies != null) def.dependencies = toArray(dependencies);
-    case 7: if (instructions != null) def.instructions = toArray(instructions) as ITargetedInstruction[][];
-    case 6: if (bindables != null) def.bindables = { ...bindables };
-    case 5: if (build != null) def.build = build === true ? buildRequired : build === false ? buildNotRequired : { ...build };
-    case 4: if (cache != null) def.cache = cache;
+    case 17: if (isStrictBinding != null) def.isStrictBinding = isStrictBinding;
+    case 16: if (aliases != null) def.aliases = toArray(aliases);
+    case 15: if (childrenObservers !== null) def.childrenObservers = { ...childrenObservers };
+    case 14: if (strategy != null) def.strategy = ensureValidStrategy(strategy);
+    case 13: if (hasSlots != null) def.hasSlots = hasSlots!;
+    case 12: if (shadowOptions != null) def.shadowOptions = shadowOptions!;
+    case 11: if (containerless != null) def.containerless = containerless!;
+    case 10: if (surrogates != null) def.surrogates = toArray(surrogates!);
+    case 9: if (dependencies != null) def.dependencies = toArray(dependencies!);
+    case 8: if (instructions != null) def.instructions = toArray(instructions!) as ITargetedInstruction[][];
+    case 7: if (bindables != null) def.bindables = { ...bindables };
+    case 6: if (build != null) def.build = build === true ? buildRequired : build === false ? buildNotRequired : { ...build! };
+    case 5: if (cache != null) def.cache = cache!;
+    case 4: if (captureAttrs != null) def.captureAttrs = captureAttrs;
     case 3: if (template != null) def.template = template;
     case 2:
       if (ctor != null) {

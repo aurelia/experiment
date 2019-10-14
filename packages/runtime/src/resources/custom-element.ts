@@ -14,7 +14,8 @@ import {
   buildTemplateDefinition,
   ITemplateDefinition,
   TemplateDefinition,
-  registerAliases
+  registerAliases,
+  IHydrateElementInstruction
 } from '../definitions';
 import {
   IDOM,
@@ -26,6 +27,13 @@ import {
   IController,
   IViewModel,
 } from '../lifecycle';
+
+export const IHydrateElementInstructionContext = DI.createInterface<IHydrateElementInstructionContext>('ICustomElementInstance').noDefault();
+export interface IHydrateElementInstructionContext<T extends INode = INode> {
+  owningController: IController<T>;
+  controller: IController<T>;
+  instruction: IHydrateElementInstruction;
+}
 
 export interface ICustomElementType<C extends Constructable = Constructable> extends
   IResourceType<ITemplateDefinition, InstanceType<C> & IViewModel>,

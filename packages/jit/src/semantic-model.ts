@@ -1,4 +1,10 @@
-import { AnyBindingExpression, IDOM, IInterpolationExpression, INode } from '@aurelia/runtime';
+import {
+  AnyBindingExpression,
+  AttributeFilter,
+  IDOM,
+  IInterpolationExpression,
+  INode,
+} from '@aurelia/runtime';
 import { AttrSyntax } from './ast';
 import { IBindingCommand } from './binding-command';
 import { AttrInfo, BindableInfo, ElementInfo } from './resource-model';
@@ -213,6 +219,7 @@ export class CustomElementSymbol<TText extends INode = INode, TElement extends I
   public templateController: TemplateControllerSymbol<TText, TElement, TMarker> | null = null;
   public isContainerless: boolean;
   public marker: TMarker;
+  public captureAttrs: AttributeFilter | string[];
 
   private _customAttributes: CustomAttributeSymbol[] | null = null;
   public get customAttributes(): CustomAttributeSymbol[] {
@@ -274,6 +281,7 @@ export class CustomElementSymbol<TText extends INode = INode, TElement extends I
       this.isContainerless = false;
       this.marker = null!;
     }
+    this.captureAttrs = info.captureAttrs;
   }
 }
 

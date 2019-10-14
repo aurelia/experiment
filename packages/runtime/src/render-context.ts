@@ -11,12 +11,18 @@ import {
   RuntimeCompilationResources,
   Transformer,
 } from '@aurelia/kernel';
-import { ITargetedInstruction, TemplateDefinition, TemplatePartDefinitions } from './definitions';
+import {
+  ITargetedInstruction,
+  TemplateDefinition,
+  TemplatePartDefinitions,
+  IHydrateElementInstruction,
+  TargetedInstructionType,
+} from './definitions';
 import { IDOM, INode, IRenderLocation } from './dom';
 import { LifecycleFlags } from './flags';
 import { IController, IRenderContext, IViewFactory } from './lifecycle';
 import { ExposedContext, IRenderer, IRenderingEngine } from './rendering-engine';
-import { ICustomElementType } from './resources/custom-element';
+import { ICustomElementType, IHydrateElementInstructionContext } from './resources/custom-element';
 
 export class RenderContext implements IRenderContext {
   public get id(): number {
@@ -34,6 +40,8 @@ export class RenderContext implements IRenderContext {
   private readonly factoryProvider: ViewFactoryProvider;
   private readonly renderLocationProvider: InstanceProvider<IRenderLocation>;
   private readonly renderer: IRenderer;
+
+  private readonly hydrationContextProvider: InstanceProvider<IHydrateElementInstructionContext>;
 
   public constructor(
     private readonly dom: IDOM,
@@ -59,6 +67,7 @@ export class RenderContext implements IRenderContext {
     const renderLocationProvider = (
       this.renderLocationProvider = new InstanceProvider<IRenderLocation>()
     );
+    this.hydrationContextProvider = new InstanceProvider();
     this.renderer = container.get(IRenderer);
 
     dom.registerElementResolver(container, elementProvider);
@@ -151,11 +160,21 @@ export class RenderContext implements IRenderContext {
     this.elementProvider.prepare(target);
     this.instructionProvider.prepare(instruction);
 
-    if (factory) {
+    if (instruction.type === TargetedInstructionType.hydrateElement) {
+      this.hydrationContextProvider.prepare(
+        new HydrateElementInstructionContext(
+          renderable,
+          instruction as IHydrateElementInstruction
+        )
+      );
+      this.container.registerResolver(IHydrateElementInstructionContext, this.hydrationContextProvider);
+    }
+
+    if (factory != null) {
       this.factoryProvider.prepare(factory, parts!);
     }
 
-    if (location) {
+    if (location != null) {
       this.renderLocationProvider.prepare(location);
     }
 
@@ -168,6 +187,7 @@ export class RenderContext implements IRenderContext {
     this.instructionProvider.dispose();
     this.elementProvider.dispose();
     this.renderLocationProvider.dispose();
+    this.hydrationContextProvider.dispose();
   }
 
   public createRuntimeCompilationResources(): RuntimeCompilationResources {
@@ -205,4 +225,14 @@ export class ViewFactoryProvider implements IResolver {
   public dispose(): void {
     this.factory = null;
   }
+}
+
+class HydrateElementInstructionContext implements IHydrateElementInstructionContext {
+
+  public controller!: IController;
+
+  public constructor(
+    public readonly owningController: IController,
+    public readonly instruction: IHydrateElementInstruction
+  ) {}
 }

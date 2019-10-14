@@ -12,6 +12,7 @@ import {
   Registration,
 } from '@aurelia/kernel';
 import {
+  AttributeFilter,
   HydrateAttributeInstruction,
   HydrateElementInstruction,
   HydrateTemplateController,
@@ -22,13 +23,13 @@ import {
   ILetBindingInstruction,
   InterpolationInstruction,
   IsBindingBehavior,
-  ITargetedInstruction,
   ITemplateCompiler,
   ITemplateDefinition,
   LetBindingInstruction,
   LetElementInstruction,
   SetPropertyInstruction,
-  TemplateDefinition
+  TemplateDefinition,
+  ViewCompileFlags
 } from '@aurelia/runtime';
 import {
   HTMLAttributeInstruction,
@@ -94,7 +95,7 @@ export class TemplateCompiler implements ITemplateCompiler {
     return Registration.singleton(ITemplateCompiler, this).register(container);
   }
 
-  public compile(dom: IDOM, definition: ITemplateDefinition, descriptions: IResourceDescriptions): TemplateDefinition {
+  public compile(dom: IDOM, definition: ITemplateDefinition, descriptions: IResourceDescriptions, viewCompileFlags: ViewCompileFlags): TemplateDefinition {
     const binder = new TemplateBinder(
       dom,
       new ResourceModel(descriptions),
@@ -123,18 +124,17 @@ export class TemplateCompiler implements ITemplateCompiler {
     const customAttributeLength = customAttributes.length;
     const plainAttributeLength = plainAttributes.length;
     if (customAttributeLength + plainAttributeLength > 0) {
-      let surrogates: ITargetedInstruction[];
       if (definition.surrogates === undefined || definition.surrogates === (PLATFORM.emptyArray as typeof definition.surrogates & typeof PLATFORM.emptyArray)) {
         definition.surrogates = Array(customAttributeLength + plainAttributeLength);
       }
-      surrogates = definition.surrogates;
+      const surrogates = definition.surrogates;
       let offset = 0;
       for (let i = 0; customAttributeLength > i; ++i) {
-        surrogates[offset] = this.compileCustomAttribute(customAttributes[i] as CustomAttributeSymbol);
+        surrogates[offset] = this.compileCustomAttribute(customAttributes[i]);
         offset++;
       }
       for (let i = 0; i < plainAttributeLength; ++i) {
-        surrogates[offset] = this.compilePlainAttribute(plainAttributes[i] as PlainAttributeSymbol);
+        surrogates[offset] = this.compilePlainAttribute(plainAttributes[i]);
         offset++;
       }
     }
@@ -177,12 +177,19 @@ export class TemplateCompiler implements ITemplateCompiler {
   }
 
   private compileCustomElement(symbol: CustomElementSymbol): void {
+    const captureAttrsConfig = symbol.captureAttrs;
+    if (typeof captureAttrsConfig !== 'number' && !Array.isArray(captureAttrsConfig)) {
+      throw new Error(`Invalid capture attributes config. Expected an enum or an array of string. Recevied: ${typeof captureAttrsConfig}`);
+    }
+
+    const capturedAttrs = captureElementSymbolAttrs(this.attrParser, symbol, captureAttrsConfig);
     // offset 1 to leave a spot for the hydrate instruction so we don't need to create 2 arrays with a spread etc
     const instructionRow = this.compileAttributes(symbol, 1) as HTMLInstructionRow;
     instructionRow[0] = new HydrateElementInstruction(
       symbol.res,
       this.compileBindings(symbol),
-      this.compileParts(symbol)
+      this.compileParts(symbol),
+      capturedAttrs
     );
 
     this.instructionRows.push(instructionRow);
@@ -286,11 +293,11 @@ export class TemplateCompiler implements ITemplateCompiler {
       const plainAttributesLength = plainAttributes.length;
       attributeInstructions = Array(offset + customAttributeLength + plainAttributesLength);
       for (let i = 0; customAttributeLength > i; ++i) {
-        attributeInstructions[offset] = this.compileCustomAttribute(customAttributes[i] as CustomAttributeSymbol);
+        attributeInstructions[offset] = this.compileCustomAttribute(customAttributes[i]);
         offset++;
       }
       for (let i = 0; plainAttributesLength > i; ++i) {
-        attributeInstructions[offset] = this.compilePlainAttribute(plainAttributes[i] as PlainAttributeSymbol);
+        attributeInstructions[offset] = this.compilePlainAttribute(plainAttributes[i]);
         offset++;
       }
     } else if (offset > 0) {
@@ -367,4 +374,112 @@ export class TemplateCompiler implements ITemplateCompiler {
     }
     return parts;
   }
+}
+
+function captureElementSymbolAttrs(attrParser: IAttributeParser, symbol: CustomElementSymbol, captureAttrConfig: AttributeFilter | string[]): { name: string; value: string }[] | undefined {
+  let result: { name: string; value: string }[] | undefined = void 0;
+  if (captureAttrConfig === AttributeFilter.none || Array.isArray(captureAttrConfig) && captureAttrConfig.length === 0) {
+    return result;
+  }
+
+  const bindables = symbol.bindables;
+  const el = symbol.physicalNode;
+  const allAttributes = el.attributes;
+  const isPredefinedFilter = typeof captureAttrConfig === 'number';
+
+  for (let i = 0, ii = allAttributes.length; ii > i; ++i) {
+    const attr = allAttributes[i];
+    const attrRawName = attr.name;
+    const attrRawValue = attr.value;
+
+    const isTargetMarker = attrRawName === 'class' && attrRawValue === 'au';
+    if (isTargetMarker) {
+      continue;
+    }
+    // attrParser should cache the parse result
+    // so execive/duplicate parsing won't hurt perf
+    const attrSyntax = attrParser.parse(attrRawName, attrRawValue);
+    const isPlainAttr = attrSyntax.command == null; /* what about interpolation */
+    // only deal with plain attr here
+    // deal with binding commands separately
+    if (!isPlainAttr) {
+      continue;
+    }
+
+    const isBindableAttr = bindables[attrSyntax.target] !== void 0;
+    if (isBindableAttr) {
+      continue;
+    }
+
+    const shouldCapture = isPredefinedFilter
+      ? (captureAttrConfig as AttributeFilter & AttributeFilter.plain) > 0
+      : (captureAttrConfig as string[]).includes(attrSyntax.target);
+    if (!shouldCapture) {
+      continue;
+    }
+
+    if (result === void 0) {
+      result = [];
+    }
+    result.push({ name: attrRawName, value: attrRawValue });
+
+    // can use el.removeAttributeNode(attr)
+    // but it seems browser performs better with string
+    // todo: micro bench this
+    el.removeAttribute(attr.name);
+    --i;
+    --ii;
+  }
+
+  const plainAttrs = symbol.plainAttributes;
+  for (let i = 0, ii = plainAttrs.length; ii > i; ++i) {
+    const attrSyntax = plainAttrs[i].syntax;
+    const shouldCapture = isPredefinedFilter
+      ? (captureAttrConfig as AttributeFilter & AttributeFilter.bindingCommands) > 0
+      : (captureAttrConfig as string[]).includes(attrSyntax.target);
+
+    if (!shouldCapture) {
+      continue;
+    }
+
+    if (result === void 0) {
+      result = [];
+    }
+
+    result.push({ name: attrSyntax.rawName, value: attrSyntax.rawValue });
+
+    // do not recompile a symbol if it has been consumed
+    // though leave the raw attr intact
+    // todo: remove raw attr
+    plainAttrs.splice(i, 1);
+    --i;
+    --i;
+  }
+
+  const customAttrs = symbol.customAttributes;
+  for (let i = 0, ii = customAttrs.length; ii > i; ++i) {
+    const attrSyntax = customAttrs[i].syntax;
+    const shouldCapture = isPredefinedFilter
+      ? (captureAttrConfig as AttributeFilter & AttributeFilter.bindingCommands) > 0
+      : (captureAttrConfig as string[]).includes(attrSyntax.target);
+
+    if (!shouldCapture) {
+      continue;
+    }
+
+    if (result === void 0) {
+      result = [];
+    }
+
+    result.push({ name: attrSyntax.rawName, value: attrSyntax.rawValue });
+
+    // do not recompile a symbol if it has been consumed
+    // though leave the raw attr intact
+    // todo: remove raw attr
+    customAttrs.splice(i, 1);
+    --i;
+    --ii;
+  }
+
+  return result;
 }

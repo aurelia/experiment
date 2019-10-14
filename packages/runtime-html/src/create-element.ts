@@ -18,7 +18,8 @@ import {
   IViewFactory,
   LifecycleFlags,
   TargetedInstructionType,
-  TemplateDefinition
+  TemplateDefinition,
+  AttributeFilter
 } from '@aurelia/runtime';
 import {
   HTMLTargetedInstruction,
@@ -69,7 +70,7 @@ export class RenderPlan<T extends INode = Node> {
 
   public get definition(): TemplateDefinition {
     if (this.lazyDefinition === void 0) {
-      this.lazyDefinition = buildTemplateDefinition(null, null, this.node, null, typeof this.node === 'string', null, this.instructions, this.dependencies);
+      this.lazyDefinition = buildTemplateDefinition(null, null, this.node, AttributeFilter.none, null, typeof this.node === 'string', null, this.instructions, this.dependencies);
     }
     return this.lazyDefinition;
   }
@@ -147,7 +148,7 @@ function createElementForType<T extends INode>(
     dependencies.push(Type);
   }
 
-  instructions.push(new HydrateElementInstruction(tagName, childInstructions));
+  instructions.push(new HydrateElementInstruction(tagName, childInstructions, void 0, void 0));
 
   if (props) {
     Object.keys(props)

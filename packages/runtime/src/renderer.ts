@@ -52,7 +52,7 @@ import {
   CustomAttribute,
 } from './resources/custom-attribute';
 import {
-  CustomElement, CustomElementHost,
+  CustomElement, CustomElementHost, IHydrateElementInstructionContext,
 } from './resources/custom-element';
 import {
   Controller,
@@ -242,6 +242,8 @@ export class CustomElementRenderer implements IInstructionRenderer {
     );
 
     setControllerReference(controller, controller.host!, instruction.res);
+    // todo: timing is unfortunate, but there seems to be no other way
+    context.get(IHydrateElementInstructionContext).controller = controller;
 
     let current: ITargetedInstruction;
     for (let i = 0, ii = childInstructions.length; i < ii; ++i) {

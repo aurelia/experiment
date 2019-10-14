@@ -1,4 +1,5 @@
 import {
+  AttributeFilter,
   Controller,
   LifecycleFlags as LF,
   ITemplateFactory,
@@ -123,6 +124,7 @@ describe.skip('controller', function () {
     return Object.freeze<Required<ITemplateDefinition>>({
       name,
       template,
+      captureAttrs: AttributeFilter.none,
       cache: 0,
       build: buildNotRequired,
       bindables: Object.freeze(
@@ -405,7 +407,7 @@ describe.skip('controller', function () {
                 h('view-model', { class: 'au' }),
                 [],
                 [
-                  [new HydrateElementInstruction('view-model', [])],
+                  [new HydrateElementInstruction('view-model', [], void 0, void 0)],
                 ],
                 noHooks,
               ),
@@ -804,6 +806,8 @@ describe.skip('controller', function () {
                     new HydrateElementInstruction(
                       'view-model',
                       [new ToViewBindingInstruction(parseExpression('msg'), 'msg')],
+                      void 0,
+                      void 0
                     ),
                   ],
                 ],

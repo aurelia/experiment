@@ -1,3 +1,14 @@
+import {
+  metadata,
+  Metadata,
+} from './metadata';
+if (typeof Metadata.define !== 'function' || typeof Reflect.metadata !== 'function') {
+  // Note: There are situations in which Metadata is not imported soon enough in order for __metadata / __decorate calls to be executed correctly because Reflect.metadata won't exist yet.
+  // This check itself is meant to prevent this error from ever occurring, by importing Metadata (and using the variable) before exporting anything from the kernel.
+  // If this error is actually thrown, something seriously went wrong in transpiling or bundling. It's not unthinkable that AOT in it early stages might cause this, hence we're leaving in the message for now.
+  throw new Error(`Kernel metadata did not initialize. Something went wrong in transpiling or bundling.`);
+}
+
 export {
   all,
   DI,
@@ -59,11 +70,12 @@ export {
   IfEquals,
   ReadonlyKeys,
   WritableKeys,
+  Char,
 } from './interfaces';
 export {
   metadata,
   Metadata,
-} from './metadata';
+};
 export {
   IConsoleLike,
   ColorOptions,

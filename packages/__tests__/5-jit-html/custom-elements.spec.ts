@@ -4,11 +4,11 @@ import {
   CustomElement,
   alias,
   CustomElementHost,
-  Aurelia
+  Aurelia,
+  InterceptorFunc,
 } from '@aurelia/runtime';
 import { TestConfiguration, assert, createFixture, TestContext, HTMLTestContext } from '@aurelia/testing';
 import { Registration, IIndexable, PLATFORM } from '@aurelia/kernel';
-import { InterceptorFunc } from '@aurelia/runtime/dist/templating/bindable';
 
 interface Person { firstName?: string; lastName?: string; fullName?: string }
 const app = class { public value: string = 'wOOt'; };

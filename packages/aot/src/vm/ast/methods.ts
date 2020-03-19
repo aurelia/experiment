@@ -4,6 +4,9 @@ import {
   ModifierFlags,
   SetAccessorDeclaration,
   SyntaxKind,
+  createMethod,
+  createGetAccessor,
+  createSetAccessor,
 } from 'typescript';
 import {
   ILogger,
@@ -38,7 +41,6 @@ import {
 } from '../types/property-descriptor';
 import {
   I$Node,
-  Context,
   modifiersToModifierFlags,
   hasBit,
   $$PropertyName,
@@ -48,6 +50,10 @@ import {
   $i,
   $$ESVarDeclaration,
   FunctionKind,
+  TransformationContext,
+  transformList,
+  transformModifiers,
+  HydrateContext,
 } from './_shared';
 import {
   $$ESModuleOrScript,
@@ -82,72 +88,136 @@ import {
 export class $MethodDeclaration implements I$Node {
   public get $kind(): SyntaxKind.MethodDeclaration { return SyntaxKind.MethodDeclaration; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $decorators: readonly $Decorator[];
-  public readonly $name: $$PropertyName;
-  public readonly $parameters: $FormalParameterList;
-  public readonly $body: $Block;
+  public $decorators!: readonly $Decorator[];
+  public $name!: $$PropertyName;
+  public $parameters!: $FormalParameterList;
+  public $body!: $Block;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-isstatic
   // 14.6.9 Static Semantics: IsStatic
-  public readonly IsStatic: boolean;
+  public IsStatic!: boolean;
   // http://www.ecma-international.org/ecma-262/#sec-method-definitions-static-semantics-propname
   // 14.3.5 Static Semantics: PropName
-  public readonly PropName: $String | $Empty;
+  public PropName!: $String | $Empty;
 
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-lexicallydeclarednames
   // 14.1.14 Static Semantics: LexicallyDeclaredNames
-  public readonly LexicallyDeclaredNames: readonly $String[];
+  public LexicallyDeclaredNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-lexicallyscopeddeclarations
   // 14.1.15 Static Semantics: LexicallyScopedDeclarations
-  public readonly LexicallyScopedDeclarations: readonly $$ESDeclaration[];
+  public LexicallyScopedDeclarations!: readonly $$ESDeclaration[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-vardeclarednames
   // 14.1.16 Static Semantics: VarDeclaredNames
-  public readonly VarDeclaredNames: readonly $String[];
+  public VarDeclaredNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-varscopeddeclarations
   // 14.1.17 Static Semantics: VarScopedDeclarations
-  public readonly VarScopedDeclarations: readonly $$ESVarDeclaration[];
+  public VarScopedDeclarations!: readonly $$ESVarDeclaration[];
 
-  public readonly functionKind: FunctionKind;
+  public get isDecorated(): boolean {
+    return this.$decorators.length > 0 || this.$parameters.hasDecorators;
+  }
 
-  public constructor(
+  public functionKind!: FunctionKind;
+
+  public parent!: $ClassDeclaration | $ClassExpression | $ObjectLiteralExpression;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: MethodDeclaration,
-    public readonly parent: $ClassDeclaration | $ClassExpression | $ObjectLiteralExpression,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.MethodDeclaration`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const modifierFlags = this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+    this.path = `${path}${$i(idx)}.MethodDeclaration`;
+  }
 
-    this.$decorators = $decoratorList(node.decorators, this, ctx);
-    const $name = this.$name = $$propertyName(node.name, this, ctx | Context.IsMemberName, -1);
-    this.$parameters = new $FormalParameterList(node.parameters, this, ctx);
-    const $body = this.$body = new $Block(node.body!, this, ctx, -1);
+  public static create(
+    node: MethodDeclaration,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $MethodDeclaration {
+    const $node = new $MethodDeclaration(node, idx, depth, mos, realm, logger, path);
 
-    this.PropName = $name.PropName;
-    this.IsStatic = hasBit(modifierFlags, ModifierFlags.Static);
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
 
-    this.LexicallyDeclaredNames = $body.TopLevelLexicallyDeclaredNames;
-    this.LexicallyScopedDeclarations = $body.TopLevelLexicallyScopedDeclarations;
-    this.VarDeclaredNames = $body.TopLevelVarDeclaredNames;
-    this.VarScopedDeclarations = $body.TopLevelVarScopedDeclarations;
+    ($node.$decorators = $decoratorList(node.decorators, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+    ($node.$name = $$propertyName(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$parameters = new $FormalParameterList(node.parameters, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+    ($node.$body = $Block.create(node.body!, -1, depth + 1, mos, realm, logger, path)).parent = $node;
 
-    if (!hasBit(modifierFlags, ModifierFlags.Async)) {
-      if (node.asteriskToken === void 0) {
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$decorators.forEach(x => x.hydrate(ctx));
+    this.$name.hydrate(ctx);
+    this.$parameters.hydrate(ctx);
+    this.$body.hydrate(ctx);
+
+    this.PropName = this.$name.PropName;
+    this.IsStatic = hasBit(this.modifierFlags, ModifierFlags.Static);
+
+    this.LexicallyDeclaredNames = this.$body.TopLevelLexicallyDeclaredNames;
+    this.LexicallyScopedDeclarations = this.$body.TopLevelLexicallyScopedDeclarations;
+    this.VarDeclaredNames = this.$body.TopLevelVarDeclaredNames;
+    this.VarScopedDeclarations = this.$body.TopLevelVarScopedDeclarations;
+
+    if (!hasBit(this.modifierFlags, ModifierFlags.Async)) {
+      if (this.node.asteriskToken === void 0) {
         this.functionKind = FunctionKind.normal;
       } else {
         this.functionKind = FunctionKind.generator;
       }
-    } else if (node.asteriskToken === void 0) {
+    } else if (this.node.asteriskToken === void 0) {
       this.functionKind = FunctionKind.async;
     } else {
       this.functionKind = FunctionKind.asyncGenerator;
     }
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedName = this.$name.transform(tctx);
+    const transformedParameters = transformList(tctx, this.$parameters, node.parameters);
+    const transformedBody = this.$body.transform(tctx);
+    const transformedModifiers = node.modifiers === void 0 ? void 0 : transformModifiers(node.modifiers);
+
+    if (
+      this.$decorators.length === 0 &&
+      (node.modifiers === void 0 || transformedModifiers === void 0) &&
+      node.name === transformedName &&
+      node.questionToken === void 0 &&
+      node.typeParameters === void 0 &&
+      transformedParameters === void 0 &&
+      node.type === void 0 &&
+      node.body === transformedBody
+    ) {
+      return this.node;
+    }
+
+    return createMethod(
+      void 0,
+      transformedModifiers === void 0 ? node.modifiers : transformedModifiers,
+      node.asteriskToken,
+      transformedName,
+      void 0,
+      void 0,
+      transformedParameters === void 0 ? node.parameters : transformedParameters,
+      void 0,
+      transformedBody,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-runtime-semantics-definemethod
@@ -253,60 +323,119 @@ export class $MethodDeclaration implements I$Node {
 export class $GetAccessorDeclaration implements I$Node {
   public get $kind(): SyntaxKind.GetAccessor { return SyntaxKind.GetAccessor; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $decorators: readonly $Decorator[];
-  public readonly $name: $$PropertyName;
-  public readonly $parameters: $FormalParameterList;
-  public readonly $body: $Block;
+  public $decorators!: readonly $Decorator[];
+  public $name!: $$PropertyName;
+  public $parameters!: $FormalParameterList;
+  public $body!: $Block;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-isstatic
   // 14.6.9 Static Semantics: IsStatic
-  public readonly IsStatic: boolean;
+  public IsStatic!: boolean;
   // http://www.ecma-international.org/ecma-262/#sec-method-definitions-static-semantics-propname
   // 14.3.5 Static Semantics: PropName
-  public readonly PropName: $String | $Empty;
+  public PropName!: $String | $Empty;
 
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-lexicallydeclarednames
   // 14.1.14 Static Semantics: LexicallyDeclaredNames
-  public readonly LexicallyDeclaredNames: readonly $String[];
+  public LexicallyDeclaredNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-lexicallyscopeddeclarations
   // 14.1.15 Static Semantics: LexicallyScopedDeclarations
-  public readonly LexicallyScopedDeclarations: readonly $$ESDeclaration[];
+  public LexicallyScopedDeclarations!: readonly $$ESDeclaration[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-vardeclarednames
   // 14.1.16 Static Semantics: VarDeclaredNames
-  public readonly VarDeclaredNames: readonly $String[];
+  public VarDeclaredNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-varscopeddeclarations
   // 14.1.17 Static Semantics: VarScopedDeclarations
-  public readonly VarScopedDeclarations: readonly $$ESVarDeclaration[];
+  public VarScopedDeclarations!: readonly $$ESVarDeclaration[];
 
-  public readonly functionKind: FunctionKind.normal = FunctionKind.normal;
+  public get isDecorated(): boolean {
+    return this.$decorators.length > 0 || this.$parameters.hasDecorators;
+  }
 
-  public constructor(
+  public functionKind: FunctionKind.normal = FunctionKind.normal;
+
+  public parent!: $ClassDeclaration | $ClassExpression | $ObjectLiteralExpression;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: GetAccessorDeclaration,
-    public readonly parent: $ClassDeclaration | $ClassExpression | $ObjectLiteralExpression,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.GetAccessorDeclaration`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const modifierFlags = this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+    this.path = `${path}${$i(idx)}.GetAccessorDeclaration`;
+  }
 
-    this.$decorators = $decoratorList(node.decorators, this, ctx);
-    const $name = this.$name = $$propertyName(node.name, this, ctx | Context.IsMemberName, -1);
-    this.$parameters = new $FormalParameterList(node.parameters, this, ctx);
-    const $body = this.$body = new $Block(node.body!, this, ctx, -1);
+  public static create(
+    node: GetAccessorDeclaration,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $GetAccessorDeclaration {
+    const $node = new $GetAccessorDeclaration(node, idx, depth, mos, realm, logger, path);
 
-    this.PropName = $name.PropName;
-    this.IsStatic = hasBit(modifierFlags, ModifierFlags.Static);
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
 
-    this.LexicallyDeclaredNames = $body.TopLevelLexicallyDeclaredNames;
-    this.LexicallyScopedDeclarations = $body.TopLevelLexicallyScopedDeclarations;
-    this.VarDeclaredNames = $body.TopLevelVarDeclaredNames;
-    this.VarScopedDeclarations = $body.TopLevelVarScopedDeclarations;
+    ($node.$decorators = $decoratorList(node.decorators, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+    ($node.$name = $$propertyName(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$parameters = new $FormalParameterList(node.parameters, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+    ($node.$body = $Block.create(node.body!, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$decorators.forEach(x => x.hydrate(ctx));
+    this.$name.hydrate(ctx);
+    this.$parameters.hydrate(ctx);
+    this.$body.hydrate(ctx);
+
+    this.PropName = this.$name.PropName;
+    this.IsStatic = hasBit(this.modifierFlags, ModifierFlags.Static);
+
+    this.LexicallyDeclaredNames = this.$body.TopLevelLexicallyDeclaredNames;
+    this.LexicallyScopedDeclarations = this.$body.TopLevelLexicallyScopedDeclarations;
+    this.VarDeclaredNames = this.$body.TopLevelVarDeclaredNames;
+    this.VarScopedDeclarations = this.$body.TopLevelVarScopedDeclarations;
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedName = this.$name.transform(tctx);
+    const transformedParameters = transformList(tctx, this.$parameters, node.parameters);
+    const transformedBody = this.$body.transform(tctx);
+    const transformedModifiers = node.modifiers === void 0 ? void 0 : transformModifiers(node.modifiers);
+
+    if (
+      this.$decorators.length === 0 &&
+      (node.modifiers === void 0 || transformedModifiers === void 0) &&
+      node.name === transformedName &&
+      transformedParameters === void 0 &&
+      node.type === void 0 &&
+      node.body === transformedBody
+    ) {
+      return this.node;
+    }
+
+    return createGetAccessor(
+      void 0,
+      transformedModifiers === void 0 ? node.modifiers : transformedModifiers,
+      transformedName,
+      transformedParameters === void 0 ? node.parameters : transformedParameters,
+      void 0,
+      transformedBody,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-method-definitions-runtime-semantics-propertydefinitionevaluation
@@ -379,60 +508,117 @@ export class $GetAccessorDeclaration implements I$Node {
 export class $SetAccessorDeclaration implements I$Node {
   public get $kind(): SyntaxKind.SetAccessor { return SyntaxKind.SetAccessor; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $decorators: readonly $Decorator[];
-  public readonly $name: $$PropertyName;
-  public readonly $parameters: $FormalParameterList;
-  public readonly $body: $Block;
+  public $decorators!: readonly $Decorator[];
+  public $name!: $$PropertyName;
+  public $parameters!: $FormalParameterList;
+  public $body!: $Block;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-isstatic
   // 14.6.9 Static Semantics: IsStatic
-  public readonly IsStatic: boolean;
+  public IsStatic!: boolean;
   // http://www.ecma-international.org/ecma-262/#sec-method-definitions-static-semantics-propname
   // 14.3.5 Static Semantics: PropName
-  public readonly PropName: $String | $Empty;
+  public PropName!: $String | $Empty;
 
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-lexicallydeclarednames
   // 14.1.14 Static Semantics: LexicallyDeclaredNames
-  public readonly LexicallyDeclaredNames: readonly $String[];
+  public LexicallyDeclaredNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-lexicallyscopeddeclarations
   // 14.1.15 Static Semantics: LexicallyScopedDeclarations
-  public readonly LexicallyScopedDeclarations: readonly $$ESDeclaration[];
+  public LexicallyScopedDeclarations!: readonly $$ESDeclaration[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-vardeclarednames
   // 14.1.16 Static Semantics: VarDeclaredNames
-  public readonly VarDeclaredNames: readonly $String[];
+  public VarDeclaredNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-function-definitions-static-semantics-varscopeddeclarations
   // 14.1.17 Static Semantics: VarScopedDeclarations
-  public readonly VarScopedDeclarations: readonly $$ESVarDeclaration[];
+  public VarScopedDeclarations!: readonly $$ESVarDeclaration[];
 
-  public readonly functionKind: FunctionKind.normal = FunctionKind.normal;
+  public get isDecorated(): boolean {
+    return this.$decorators.length > 0 || this.$parameters.hasDecorators;
+  }
 
-  public constructor(
+  public functionKind: FunctionKind.normal = FunctionKind.normal;
+
+  public parent!: $ClassDeclaration | $ClassExpression | $ObjectLiteralExpression;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: SetAccessorDeclaration,
-    public readonly parent: $ClassDeclaration | $ClassExpression | $ObjectLiteralExpression,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.SetAccessorDeclaration`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const modifierFlags = this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+    this.path = `${path}${$i(idx)}.SetAccessorDeclaration`;
+  }
 
-    this.$decorators = $decoratorList(node.decorators, this, ctx);
-    const $name = this.$name = $$propertyName(node.name, this, ctx | Context.IsMemberName, -1);
-    this.$parameters = new $FormalParameterList(node.parameters, this, ctx);
-    const $body = this.$body = new $Block(node.body!, this, ctx, -1);
+  public static create(
+    node: SetAccessorDeclaration,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $SetAccessorDeclaration {
+    const $node = new $SetAccessorDeclaration(node, idx, depth, mos, realm, logger, path);
 
-    this.PropName = $name.PropName;
-    this.IsStatic = hasBit(modifierFlags, ModifierFlags.Static);
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
 
-    this.LexicallyDeclaredNames = $body.TopLevelLexicallyDeclaredNames;
-    this.LexicallyScopedDeclarations = $body.TopLevelLexicallyScopedDeclarations;
-    this.VarDeclaredNames = $body.TopLevelVarDeclaredNames;
-    this.VarScopedDeclarations = $body.TopLevelVarScopedDeclarations;
+    ($node.$decorators = $decoratorList(node.decorators, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+    ($node.$name = $$propertyName(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$parameters = new $FormalParameterList(node.parameters, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+    ($node.$body = $Block.create(node.body!, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$decorators.forEach(x => x.hydrate(ctx));
+    this.$name.hydrate(ctx);
+    this.$parameters.hydrate(ctx);
+    this.$body.hydrate(ctx);
+
+    this.PropName = this.$name.PropName;
+    this.IsStatic = hasBit(this.modifierFlags, ModifierFlags.Static);
+
+    this.LexicallyDeclaredNames = this.$body.TopLevelLexicallyDeclaredNames;
+    this.LexicallyScopedDeclarations = this.$body.TopLevelLexicallyScopedDeclarations;
+    this.VarDeclaredNames = this.$body.TopLevelVarDeclaredNames;
+    this.VarScopedDeclarations = this.$body.TopLevelVarScopedDeclarations;
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedName = this.$name.transform(tctx);
+    const transformedParameters = transformList(tctx, this.$parameters, node.parameters);
+    const transformedBody = this.$body.transform(tctx);
+    const transformedModifiers = node.modifiers === void 0 ? void 0 : transformModifiers(node.modifiers);
+
+    if (
+      this.$decorators.length === 0 &&
+      (node.modifiers === void 0 || transformedModifiers === void 0) &&
+      node.name === transformedName &&
+      transformedParameters === void 0 &&
+      node.body === transformedBody
+    ) {
+      return this.node;
+    }
+
+    return createSetAccessor(
+      void 0,
+      transformedModifiers === void 0 ? node.modifiers : transformedModifiers,
+      transformedName,
+      transformedParameters === void 0 ? node.parameters : transformedParameters,
+      transformedBody,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-method-definitions-runtime-semantics-propertydefinitionevaluation

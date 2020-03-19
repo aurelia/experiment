@@ -8,10 +8,10 @@ import {
   BindingCommandInstance,
   ResourceModel,
   SymbolFlags,
-  Char,
 } from '@aurelia/jit';
 import {
   camelCase,
+  Char,
 } from '@aurelia/kernel';
 import {
   AnyBindingExpression,

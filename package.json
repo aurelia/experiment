@@ -12,8 +12,8 @@
     "bootstrap": "lerna bootstrap --ci",
     "postinstall": "lerna bootstrap --ci",
     "rebuild": "npm run clean && npm run build",
-    "build": "lerna run build --scope @aurelia/* --scope aurelia",
-    "build:release": "lerna run build --scope @aurelia/* --scope aurelia --ignore @aurelia/__tests__ --ignore @aurelia/__e2e__",
+    "build": "lerna run build --scope @aurelia/* --scope aurelia --scope au",
+    "build:release": "lerna run build --scope @aurelia/* --scope aurelia --scope au --ignore @aurelia/__tests__ --ignore @aurelia/__e2e__",
     "postbuild:release": "npm run clean:tsconfig-build-cache",
     "build:release:full": "npm run build:release && npm run change-tsconfigs:overwrite:umd && npm run build:release && npm run change-tsconfigs:restore",
     "build:test": "lerna run build:test",
@@ -45,7 +45,8 @@
     "modify-code": "^1.0.1",
     "parse5": "^5.1.1",
     "pixi.js": "^4.8.8",
-    "rxjs": "^6.5.3"
+    "rxjs": "^6.5.3",
+    "ws": "^7.2.1"
   },
   "devDependencies": {
     "@commitlint/cli": "^8.2.0",
@@ -64,6 +65,7 @@
     "@types/vinyl": "^2.0.4",
     "@types/webpack": "^4.41.0",
     "@types/webpack-env": "^1.14.1",
+    "@types/ws": "^6.0.4",
     "@typescript-eslint/eslint-plugin": "^2.12.0",
     "@typescript-eslint/parser": "^2.12.0",
     "chalk": "^3.0.0",

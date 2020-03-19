@@ -43,7 +43,8 @@ import {
   UnaryOperator,
   ValueConverterExpression
 } from '@aurelia/runtime';
-import { Access, Char, Precedence, Token, unescapeCode } from './common';
+import { Char } from '@aurelia/kernel';
+import { Access, Precedence, Token, unescapeCode } from './common';
 
 const $false = PrimitiveLiteralExpression.$false;
 const $true = PrimitiveLiteralExpression.$true;

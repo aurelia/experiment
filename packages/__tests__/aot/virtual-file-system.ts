@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/require-await */
-import { IFileSystem, Encoding, IFile, IDirent, IStats } from '@aurelia/aot';
+import { IFileSystem, Encoding, FileEntry, IDirent, IStats } from '@aurelia/runtime-node';
 
 function toParts(path: string): string[] {
   // eslint-disable-next-line no-useless-escape
@@ -149,11 +149,19 @@ export class VirtualFileSystem implements IFileSystem {
     throw new Error('Method not implemented.');
   }
 
-  public async getFiles(dir: string, loadContent?: boolean): Promise<readonly IFile[]> {
+  public async getFiles(dir: string, loadContent?: boolean): Promise<readonly FileEntry[]> {
     throw new Error('Method not implemented.');
   }
 
-  public getFilesSync(dir: string, loadContent?: boolean): readonly IFile[] {
+  public getFilesSync(dir: string, loadContent?: boolean): readonly FileEntry[] {
+    throw new Error('Method not implemented.');
+  }
+
+  public async getFile(dir: string, loadContent?: boolean): Promise<FileEntry> {
+    throw new Error('Method not implemented.');
+  }
+
+  public getFileSync(dir: string, loadContent?: boolean): FileEntry {
     throw new Error('Method not implemented.');
   }
 

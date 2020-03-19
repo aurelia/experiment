@@ -6,9 +6,6 @@ import {
   resolve,
 } from 'path';
 import {
-  Realm,
-} from './vm/realm';
-import {
   DI,
   LoggerConfiguration,
   LogLevel,
@@ -17,10 +14,8 @@ import {
 } from '@aurelia/kernel';
 import {
   IFileSystem,
-} from './system/interfaces';
-import {
   NodeFileSystem,
-} from './system/file-system';
+} from '@aurelia/runtime-node';
 import {
   ServiceHost,
 } from './service-host';
@@ -37,9 +32,9 @@ import {
     Registration.singleton(IFileSystem, NodeFileSystem),
   );
 
-  const host = new ServiceHost(container);
+  const host = container.get(ServiceHost);
 
-  await host.executeEntryFile(root);
+  await host.execute({ evaluate: true, entries: [{ dir: root }] });
 
 })().catch(err => {
   console.error(err);

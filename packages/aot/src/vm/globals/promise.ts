@@ -538,7 +538,7 @@ export class PromiseReactionJob extends Job {
 
   // http://www.ecma-international.org/ecma-262/#sec-promisereactionjob
   // 25.6.2.1 PromiseReactionJob ( reaction , argument )
-  public Run(ctx: ExecutionContext): $Any {
+  public async Run(ctx: ExecutionContext): Promise<$Any> {
     const realm = ctx.Realm;
     const intrinsics = realm['[[Intrinsics]]'];
 
@@ -615,7 +615,7 @@ export class PromiseResolveThenableJob extends Job {
 
   // http://www.ecma-international.org/ecma-262/#sec-promiseresolvethenablejob
   // 25.6.2.2 PromiseResolveThenableJob ( promiseToResolve , thenable , then )
-  public Run(ctx: ExecutionContext): $Any {
+  public async Run(ctx: ExecutionContext): Promise<$Any> {
     const realm = ctx.Realm;
     const intrinsics = realm['[[Intrinsics]]'];
 

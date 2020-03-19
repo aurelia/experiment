@@ -27,12 +27,10 @@ import {
   stringifyLifecycleFlags,
 } from '@aurelia/debug';
 import {
-  Char,
-} from '@aurelia/jit';
-import {
   Constructable,
   isArrayIndex,
   Primitive,
+  Char,
 } from '@aurelia/kernel';
 import {
   DOM,

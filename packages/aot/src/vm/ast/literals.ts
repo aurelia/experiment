@@ -11,6 +11,7 @@ import {
   TemplateMiddle,
   TemplateSpan,
   TemplateTail,
+  createTemplateSpan,
 } from 'typescript';
 import {
   ILogger,
@@ -39,12 +40,13 @@ import {
 } from '../types/boolean';
 import {
   I$Node,
-  Context,
   $$AssignmentExpressionOrHigher,
   $assignmentExpression,
   $AssignmentExpressionNode,
   $AnyParentNode,
   $i,
+  TransformationContext,
+  HydrateContext,
 } from './_shared';
 import {
   $$ESModuleOrScript,
@@ -58,16 +60,40 @@ import {
 export class $TemplateHead implements I$Node {
   public get $kind(): SyntaxKind.TemplateHead { return SyntaxKind.TemplateHead; }
 
-  public constructor(
+  public parent!: $TemplateExpression;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: TemplateHead,
-    public readonly parent: $TemplateExpression,
-    public readonly ctx: Context,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.TemplateHead`,
-  ) {}
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
+  ) {
+    this.path = `${path}.TemplateHead`;
+  }
+
+  public static create(
+    node: TemplateHead,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $TemplateHead {
+    const $node = new $TemplateHead(node, depth, mos, realm, logger, path);
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
 
   // http://www.ecma-international.org/ecma-262/#sec-template-literals-runtime-semantics-evaluation
   // 12.2.9.6 Runtime Semantics: Evaluation
@@ -88,16 +114,40 @@ export class $TemplateHead implements I$Node {
 export class $TemplateMiddle implements I$Node {
   public get $kind(): SyntaxKind.TemplateMiddle { return SyntaxKind.TemplateMiddle; }
 
-  public constructor(
+  public parent!: $TemplateExpression | $TemplateSpan;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: TemplateMiddle,
-    public readonly parent: $TemplateExpression | $TemplateSpan,
-    public readonly ctx: Context,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.TemplateMiddle`,
-  ) {}
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
+  ) {
+    this.path = `${path}.TemplateMiddle`;
+  }
+
+  public static create(
+    node: TemplateMiddle,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $TemplateMiddle {
+    const $node = new $TemplateMiddle(node, depth, mos, realm, logger, path);
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
 
   // http://www.ecma-international.org/ecma-262/#sec-template-literals-runtime-semantics-evaluation
   // 12.2.9.6 Runtime Semantics: Evaluation
@@ -118,16 +168,40 @@ export class $TemplateMiddle implements I$Node {
 export class $TemplateTail implements I$Node {
   public get $kind(): SyntaxKind.TemplateTail { return SyntaxKind.TemplateTail; }
 
-  public constructor(
+  public parent!: $TemplateExpression | $TemplateSpan;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: TemplateTail,
-    public readonly parent: $TemplateExpression | $TemplateSpan,
-    public readonly ctx: Context,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.TemplateTail`,
-  ) {}
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
+  ) {
+    this.path = `${path}.TemplateTail`;
+  }
+
+  public static create(
+    node: TemplateTail,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $TemplateTail {
+    const $node = new $TemplateTail(node, depth, mos, realm, logger, path);
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
 
   // http://www.ecma-international.org/ecma-262/#sec-template-literals-runtime-semantics-evaluation
   // 12.2.9.6 Runtime Semantics: Evaluation
@@ -153,26 +227,69 @@ export class $TemplateTail implements I$Node {
 export class $TemplateSpan implements I$Node {
   public get $kind(): SyntaxKind.TemplateSpan { return SyntaxKind.TemplateSpan; }
 
-  public readonly $expression: $$AssignmentExpressionOrHigher;
-  public readonly $literal: $TemplateMiddle | $TemplateTail;
+  public $expression!: $$AssignmentExpressionOrHigher;
+  public $literal!: $TemplateMiddle | $TemplateTail;
 
-  public constructor(
+  public parent!: $TemplateExpression;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: TemplateSpan,
-    public readonly parent: $TemplateExpression,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.TemplateSpan`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.TemplateSpan`;
+  }
+
+  public static create(
+    node: TemplateSpan,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $TemplateSpan {
+    const $node = new $TemplateSpan(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     if (node.literal.kind === SyntaxKind.TemplateMiddle) {
-      this.$literal = new $TemplateMiddle(node.literal, this, ctx);
+      ($node.$literal = $TemplateMiddle.create(node.literal, depth + 1, mos, realm, logger, path)).parent = $node;
     } else {
-      this.$literal = new $TemplateTail(node.literal, this, ctx);
+      ($node.$literal = $TemplateTail.create(node.literal, depth + 1, mos, realm, logger, path)).parent = $node;
     }
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+    this.$literal.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const $expression = this.$expression.transform(tctx);
+    const $literal = this.$literal.transform(tctx);
+
+    if (
+      $expression === node.expression &&
+      $literal === node.literal
+    ) {
+      return node;
+    }
+
+    return createTemplateSpan(
+      $expression,
+      $literal,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-template-literals-runtime-semantics-evaluation
@@ -220,42 +337,68 @@ export class $TemplateSpan implements I$Node {
 export class $NumericLiteral implements I$Node {
   public get $kind(): SyntaxKind.NumericLiteral { return SyntaxKind.NumericLiteral; }
 
-  public readonly Value: $Number;
+  public Value!: $Number;
 
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-static-semantics-propname
   // 12.2.6.5 Static Semantics: PropName
-  public readonly PropName: $String;
+  public PropName!: $String;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $NumericLiteral = this;
+  public CoveredParenthesizedExpression: $NumericLiteral = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: NumericLiteral,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.NumericLiteral`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const num = Number(node.text);
-    this.PropName = new $String(realm, num.toString(), void 0, void 0, this);
-    this.Value = new $Number(realm, num, void 0, void 0, this);
+    this.path = `${path}${$i(idx)}.NumericLiteral`;
+  }
+
+  public static create(
+    node: NumericLiteral,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NumericLiteral {
+    const $node = new $NumericLiteral(node, idx, depth, mos, realm, logger, path);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    const num = Number(this.node.text);
+    this.PropName = new $String(this.realm, num.toString(), void 0, void 0, this);
+    this.Value = new $Number(this.realm, num, void 0, void 0, this);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-literals-runtime-semantics-evaluation
@@ -284,31 +427,56 @@ export class $BigIntLiteral implements I$Node {
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $BigIntLiteral = this;
+  public CoveredParenthesizedExpression: $BigIntLiteral = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: BigIntLiteral,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.BigIntLiteral`,
-  ) {}
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
+  ) {
+    this.path = `${path}${$i(idx)}.BigIntLiteral`;
+  }
+
+  public static create(
+    node: BigIntLiteral,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $BigIntLiteral {
+    const $node = new $BigIntLiteral(node, idx, depth, mos, realm, logger, path);
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
 
   public Evaluate(
     ctx: ExecutionContext,
@@ -327,45 +495,71 @@ export class $BigIntLiteral implements I$Node {
 export class $StringLiteral implements I$Node {
   public get $kind(): SyntaxKind.StringLiteral { return SyntaxKind.StringLiteral; }
 
-  public readonly Value: $String;
+  public Value!: $String;
 
   // http://www.ecma-international.org/ecma-262/#sec-string-literals-static-semantics-stringvalue
   // 11.8.4.1 Static Semantics: StringValue
-  public readonly StringValue: $String;
+  public StringValue!: $String;
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-static-semantics-propname
   // 12.2.6.5 Static Semantics: PropName
-  public readonly PropName: $String;
+  public PropName!: $String;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $StringLiteral = this;
+  public CoveredParenthesizedExpression: $StringLiteral = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: StringLiteral,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.StringLiteral`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const StringValue = this.StringValue = new $String(realm, node.text, void 0, void 0, this);
+    this.path = `${path}${$i(idx)}.StringLiteral`;
+  }
+
+  public static create(
+    node: StringLiteral,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $StringLiteral {
+    const $node = new $StringLiteral(node, idx, depth, mos, realm, logger, path);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    const StringValue = this.StringValue = new $String(this.realm, this.node.text, void 0, void 0, this);
     this.PropName = StringValue;
     this.Value = StringValue;
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-literals-runtime-semantics-evaluation
@@ -396,36 +590,62 @@ export class $RegularExpressionLiteral implements I$Node {
 
   // http://www.ecma-international.org/ecma-262/#sec-regexp-identifier-names-static-semantics-stringvalue
   // 21.2.1.6 Static Semantics: StringValue
-  public readonly StringValue: string;
+  public StringValue!: string;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $RegularExpressionLiteral = this;
+  public CoveredParenthesizedExpression: $RegularExpressionLiteral = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: RegularExpressionLiteral,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.RegularExpressionLiteral`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.StringValue = node.text;
+    this.path = `${path}${$i(idx)}.RegularExpressionLiteral`;
+  }
+
+  public static create(
+    node: RegularExpressionLiteral,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $RegularExpressionLiteral {
+    const $node = new $RegularExpressionLiteral(node, idx, depth, mos, realm, logger, path);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.StringValue = this.node.text;
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-regular-expression-literals-runtime-semantics-evaluation
@@ -452,31 +672,56 @@ export class $NoSubstitutionTemplateLiteral implements I$Node {
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $NoSubstitutionTemplateLiteral = this;
+  public CoveredParenthesizedExpression: $NoSubstitutionTemplateLiteral = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: NoSubstitutionTemplateLiteral,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.NoSubstitutionTemplateLiteral`,
-  ) {}
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
+  ) {
+    this.path = `${path}${$i(idx)}.NoSubstitutionTemplateLiteral`;
+  }
+
+  public static create(
+    node: NoSubstitutionTemplateLiteral,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NoSubstitutionTemplateLiteral {
+    const $node = new $NoSubstitutionTemplateLiteral(node, idx, depth, mos, realm, logger, path);
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
 
   // http://www.ecma-international.org/ecma-262/#sec-template-literals-runtime-semantics-evaluation
   // 12.2.9.6 Runtime Semantics: Evaluation
@@ -498,36 +743,62 @@ export class $NoSubstitutionTemplateLiteral implements I$Node {
 export class $NullLiteral implements I$Node {
   public get $kind(): SyntaxKind.NullKeyword { return SyntaxKind.NullKeyword; }
 
-  public readonly Value: $Null;
+  public Value!: $Null;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $NullLiteral = this;
+  public CoveredParenthesizedExpression: $NullLiteral = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: NullLiteral,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.NullLiteral`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.Value = new $Null(realm, void 0, void 0, this);
+    this.path = `${path}${$i(idx)}.NullLiteral`;
+  }
+
+  public static create(
+    node: NullLiteral,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NullLiteral {
+    const $node = new $NullLiteral(node, idx, depth, mos, realm, logger, path);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.Value = new $Null(this.realm, void 0, void 0, this);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-literals-runtime-semantics-evaluation
@@ -545,40 +816,66 @@ export class $NullLiteral implements I$Node {
 }
 
 export class $BooleanLiteral implements I$Node {
-  public readonly $kind: SyntaxKind.TrueKeyword | SyntaxKind.FalseKeyword;
+  public $kind!: SyntaxKind.TrueKeyword | SyntaxKind.FalseKeyword;
 
-  public readonly Value: $Boolean;
+  public Value!: $Boolean;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $BooleanLiteral = this;
+  public CoveredParenthesizedExpression: $BooleanLiteral = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: BooleanLiteral,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.BooleanLiteral`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$kind = node.kind;
+    this.path = `${path}${$i(idx)}.BooleanLiteral`;
+  }
 
-    this.Value = new $Boolean(realm, node.kind === SyntaxKind.TrueKeyword, void 0, void 0, this);
+  public static create(
+    node: BooleanLiteral,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $BooleanLiteral {
+    const $node = new $BooleanLiteral(node, idx, depth, mos, realm, logger, path);
+
+    $node.$kind = node.kind;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.Value = new $Boolean(this.realm, this.node.kind === SyntaxKind.TrueKeyword, void 0, void 0, this);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-literals-runtime-semantics-evaluation

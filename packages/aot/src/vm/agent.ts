@@ -1,13 +1,13 @@
+/* eslint-disable no-await-in-loop */
 import {
   JobQueue,
   Job,
 } from './job';
 import {
-  DI,
-  IContainer,
   ILogger,
   IDisposable,
   Writable,
+  DI,
 } from '@aurelia/kernel';
 import {
   Realm,
@@ -25,29 +25,45 @@ import {
   $$ESModuleOrScript,
   $ESScript,
 } from './ast/modules';
+import {
+  Workspace,
+} from './workspace';
 
-export const ISourceFileProvider = DI.createInterface<ISourceFileProvider>('ISourceFileProvider').noDefault();
-export interface ISourceFileProvider {
-  GetSourceFiles(ctx: ExecutionContext): Promise<readonly $$ESModuleOrScript[]>;
+export class ExecutionResult implements IDisposable {
+  public constructor(
+    public readonly ws: Workspace,
+    public readonly result: $Any,
+  ) {}
+
+  public dispose(): void {
+    this.ws.dispose();
+  }
+}
+
+export const IAgent = DI.createInterface<IAgent>('IAgent').withDefault(x => x.singleton(Agent));
+export interface IAgent extends IDisposable {
+  RunJobs(ws: Workspace): Promise<ExecutionResult>;
 }
 
 // http://www.ecma-international.org/ecma-262/#sec-agents
-export class Agent implements IDisposable {
+export class Agent implements IAgent {
   public readonly ScriptJobs: JobQueue;
   public readonly PromiseJobs: JobQueue;
 
   public constructor(
+    @ILogger
     public readonly logger: ILogger,
   ) {
+    this.logger = logger.root.scopeTo('Agent');
     this.ScriptJobs = new JobQueue(logger, 'Script');
     this.PromiseJobs = new JobQueue(logger, 'Promise');
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-runjobs
   // 8.6 RunJobs ( )
-  public async RunJobs(container: IContainer): Promise<$Any> {
+  public async RunJobs(ws: Workspace): Promise<ExecutionResult> {
     // 1. Perform ? InitializeHostDefinedRealm().
-    const realm = Realm.Create(container, this.PromiseJobs);
+    const realm = Realm.Create(ws, this.PromiseJobs);
     const intrinsics = realm['[[Intrinsics]]'];
     const stack = realm.stack;
     // We always have 1 synthetic root context which should not be considered to be a part of the stack.
@@ -55,8 +71,7 @@ export class Agent implements IDisposable {
     const rootCtx = stack.top;
 
     // 2. In an implementation-dependent manner, obtain the ECMAScript source texts (see clause 10) and any associated host-defined values for zero or more ECMAScript scripts and/or ECMAScript modules. For each such sourceText and hostDefined, do
-    const sfProvider = container.get(ISourceFileProvider);
-    const files = await sfProvider.GetSourceFiles(rootCtx);
+    const files = await ws.loadEntryFiles(realm);
     for (const file of files) {
       // 2. a. If sourceText is the source code of a script, then
       if (file.isScript) {
@@ -88,7 +103,10 @@ export class Agent implements IDisposable {
       if (this.ScriptJobs.isEmpty) {
         if (this.PromiseJobs.isEmpty) {
           this.logger.debug(`Finished successfully`);
-          return new $Empty(realm, CompletionType.normal, intrinsics.empty, lastFile);
+          return new ExecutionResult(
+            ws,
+            new $Empty(realm, CompletionType.normal, intrinsics.empty, lastFile),
+          );
         } else {
           // 3. d. Let nextPending be the PendingJob record at the front of nextQueue. Remove that record from nextQueue.
           nextPending = this.PromiseJobs.queue.shift()!;
@@ -113,12 +131,15 @@ export class Agent implements IDisposable {
 
       // 3. j. Perform any implementation or host environment defined job initialization using nextPending.
       // 3. k. Let result be the result of performing the abstract operation named by nextPending.[[Job]] using the elements of nextPending.[[Arguments]] as its arguments.
-      const result = nextPending.Run(newContext);
+      const result = await nextPending.Run(newContext);
 
       // 3. l. If result is an abrupt completion, perform HostReportErrors(« result.[[Value]] »).
       if (result.isAbrupt) {
-        this.logger.debug(`Job completed with errors`);
-        return result;
+        this.logger.warn(`Job completed with errors`);
+        return new ExecutionResult(
+          ws,
+          result,
+        );
       }
     }
   }
@@ -142,10 +163,13 @@ export class TopLevelModuleEvaluationJob extends Job<$ESModule> {
 
   // http://www.ecma-international.org/ecma-262/#sec-toplevelmoduleevaluationjob
   // 15.2.1.20 Runtime Semantics: TopLevelModuleEvaluationJob ( sourceText , hostDefined )
-  public Run(ctx: ExecutionContext): $Any {
+  public async Run(ctx: ExecutionContext): Promise<$Any> {
     this.logger.debug(`Run(#${ctx.id})`);
 
     const m = this['[[ScriptOrModule]]'];
+    const realm = ctx.Realm;
+    const intrinsics = realm['[[Intrinsics]]'];
+    const options = realm.options;
 
     // 1. Assert: sourceText is an ECMAScript source text (see clause 10).
     // 2. Let realm be the current Realm Record.
@@ -155,14 +179,24 @@ export class TopLevelModuleEvaluationJob extends Job<$ESModule> {
       // 4. b. Return NormalCompletion(undefined).
 
     // 5. Perform ? m.Instantiate().
-    const result = m.Instantiate(ctx);
-    if (result.isAbrupt) {
-      return result;
-    }
+    if (options.instantiate) {
+      const result = await m.Instantiate(ctx);
+      if (result.isAbrupt) {
+        return result;
+      }
 
-    // 6. Assert: All dependencies of m have been transitively resolved and m is ready for evaluation.
-    // 7. Return ? m.Evaluate().
-    return m.EvaluateModule(ctx);
+      if (options.evaluate) {
+        // 6. Assert: All dependencies of m have been transitively resolved and m is ready for evaluation.
+        // 7. Return ? m.Evaluate().
+        return m.EvaluateModule(ctx);
+      } else {
+        this.logger.debug(`Skipping evaluate`);
+        return result;
+      }
+    } else {
+      this.logger.debug(`Skipping instantiate`);
+      return intrinsics.empty;
+    }
   }
 }
 
@@ -176,19 +210,33 @@ export class ScriptEvaluationJob extends Job<$ESScript> {
 
   // http://www.ecma-international.org/ecma-262/#sec-scriptevaluationjob
   // 15.1.12 Runtime Semantics: ScriptEvaluationJob ( sourceText , hostDefined )
-  public Run(ctx: ExecutionContext): $Any {
+  public async Run(ctx: ExecutionContext): Promise<$Any> {
     this.logger.debug(`Run(#${ctx.id})`);
 
     const m = this['[[ScriptOrModule]]'];
+    const realm = ctx.Realm;
+    const intrinsics = realm['[[Intrinsics]]'];
+    const options = realm.options;
 
     // 1. Assert: sourceText is an ECMAScript source text (see clause 10).
     // 2. Let realm be the current Realm Record.
 
-    // 3. Let s be ParseScript(sourceText, realm, hostDefined).
-    // 4. If s is a List of errors, then
-      // 4. a. Perform HostReportErrors(s).
-      // 4. b. Return NormalCompletion(undefined).
-    // 5. Return ? ScriptEvaluation(s).
-    return m.EvaluateScript(ctx);
+    if (options.instantiate) {
+      // 3. Let s be ParseScript(sourceText, realm, hostDefined).
+      // 4. If s is a List of errors, then
+        // 4. a. Perform HostReportErrors(s).
+        // 4. b. Return NormalCompletion(undefined).
+
+      if (options.evaluate) {
+        // 5. Return ? ScriptEvaluation(s).
+        return m.EvaluateScript(ctx);
+      } else {
+        this.logger.debug(`Skipping evaluate`);
+        return intrinsics.empty;
+      }
+    } else {
+      this.logger.debug(`Skipping instantiate`);
+      return intrinsics.empty;
+    }
   }
 }

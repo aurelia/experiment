@@ -40,6 +40,7 @@ import {
 } from './error';
 import {
   I$Node,
+  $$ValueDeclaration,
 } from '../ast/_shared';
 
 // http://www.ecma-international.org/ecma-262/#sec-reference-specification-type
@@ -174,6 +175,7 @@ export class $Reference {
   public PutValue(
     ctx: ExecutionContext,
     W: $AnyNonEmpty,
+    declaringNode: $$ValueDeclaration | null,
   ): $Boolean | $Undefined | $Empty | $Error {
     const realm = ctx.Realm;
     const intrinsics = realm['[[Intrinsics]]'];
@@ -222,7 +224,7 @@ export class $Reference {
     // 7. Else base must be an Environment Record,
     else {
       // 7. a. Return ? base.SetMutableBinding(GetReferencedName(V), W, IsStrictReference(V)) (see 8.1.1).
-      return (base as $EnvRec).SetMutableBinding(ctx, this.GetReferencedName(), W, this.IsStrictReference());
+      return (base as $EnvRec).SetMutableBinding(ctx, this.GetReferencedName(), W, this.IsStrictReference(), declaringNode);
     }
   }
 

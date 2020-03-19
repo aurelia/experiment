@@ -5,7 +5,7 @@
     "target": "es2018",
     "module": "esnext",
     "moduleResolution": "node",
-    "importHelpers": true,
+    "importHelpers": false,
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "rootDir": ".",

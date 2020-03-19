@@ -47,8 +47,8 @@ import {
   $ESModule,
 } from '../ast/modules';
 import {
-  Context,
   FunctionKind,
+  HydrateContext,
 } from '../ast/_shared';
 import {
   $Boolean,
@@ -503,17 +503,17 @@ export function $CreateDynamicFunction(
   ).statements[0] as FunctionDeclaration;
   const ScriptOrModule = callerContext.ScriptOrModule as $ESModule;
 
-  const $functionDeclaration = new $FunctionDeclaration(
+  const $functionDeclaration = $FunctionDeclaration.create(
     node,
-    ScriptOrModule,
-    Context.Dynamic,
     -1,
+    1,
     ScriptOrModule,
     calleeRealm,
-    1,
     ScriptOrModule.logger,
     `${ScriptOrModule.path}[Dynamic].FunctionDeclaration`,
   );
+  $functionDeclaration.parent = ScriptOrModule;
+  $functionDeclaration.hydrate(HydrateContext.None);
 
   // 19. Let strict be ContainsUseStrict of body.
   const strict = $functionDeclaration.ContainsUseStrict;

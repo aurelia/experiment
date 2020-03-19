@@ -45,11 +45,12 @@
     "@aurelia/jit": "0.6.0",
     "@aurelia/kernel": "0.6.0",
     "@aurelia/runtime": "0.6.0",
-    "@aurelia/testing": "0.6.0"
+    "@aurelia/runtime-node": "0.6.0",
+    "@aurelia/testing": "0.6.0",
+    "typescript": "^3.7.4"
   },
   "devDependencies": {
     "@types/node": "^12.12.21",
-    "tslib": "^1.10.0",
-    "typescript": "^3.7.4"
+    "tslib": "^1.10.0"
   }
 }

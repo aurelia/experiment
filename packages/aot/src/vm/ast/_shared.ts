@@ -84,10 +84,30 @@ import {
   WithStatement,
   YieldExpression,
   Statement,
+  createIdentifier,
+  createVoidZero,
+  TypeNode,
+  LiteralTypeNode,
+  ParameterDeclaration,
+  ParenthesizedTypeNode,
+  TypeReferenceNode,
+  TypeOperatorNode,
+  EntityName,
+  QualifiedName,
+  createPropertyAccess,
+  Expression,
+  createCall,
+  createLiteral,
+  createArrayLiteral,
+  createFunctionExpression,
+  createParameter,
+  createBlock,
+  createExpressionStatement,
+  createNumericLiteral,
 } from 'typescript';
 import {
   PLATFORM,
-  Writable,
+  ILogger,
 } from '@aurelia/kernel';
 import {
   Realm,
@@ -109,17 +129,16 @@ import {
   $ExternalModuleReference,
   $ImportClause,
   $ImportSpecifier,
-  $ModuleBlock,
   $NamedImports,
   $NamespaceImport,
   $QualifiedName,
-  $ModuleDeclaration,
   $ExportAssignment,
   $ExportDeclaration,
   $ImportDeclaration,
   $ImportEqualsDeclaration,
   $ESScript,
   $ESModule,
+  $$ESModuleOrScript,
 } from './modules';
 import {
   $ArrayBindingPattern,
@@ -127,7 +146,6 @@ import {
   $ComputedPropertyName,
   $ObjectBindingPattern,
   $SpreadElement,
-  $$NamedDeclaration,
 } from './bindings';
 import {
   $ArrayLiteralExpression,
@@ -193,7 +211,6 @@ import {
   $VariableStatement,
   $EmptyStatement,
   $DebuggerStatement,
-  DirectivePrologue,
   ExpressionStatement_T,
 } from './statements';
 import {
@@ -202,7 +219,6 @@ import {
   $HeritageClause,
   $PropertyDeclaration,
   $ClassDeclaration,
-  $$NodeWithHeritageClauses,
   $SemicolonClassElement,
 } from './classes';
 import {
@@ -210,6 +226,8 @@ import {
   $InterfaceDeclaration,
   $TypeAliasDeclaration,
   $EnumDeclaration,
+  $ModuleBlock,
+  $ModuleDeclaration,
 } from './types';
 import {
   $GetAccessorDeclaration,
@@ -226,7 +244,6 @@ import {
   $JsxOpeningElement,
   $JsxSelfClosingElement,
   $JsxSpreadAttribute,
-  $$JsxParent,
 } from './jsx';
 import {
   $TemplateSpan,
@@ -247,6 +264,7 @@ import {
 import {
   $Error,
 } from '../types/error';
+import { $String } from '../types/string';
 
 const {
   emptyArray,
@@ -513,27 +531,39 @@ export type $$AssignmentExpressionOrHigher = (
 
 export function $assignmentExpression(
   node: undefined,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): undefined;
 export function $assignmentExpression(
   node: $AssignmentExpressionNode,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$AssignmentExpressionOrHigher;
 export function $assignmentExpression(
   node: $AssignmentExpressionNode | undefined,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$AssignmentExpressionOrHigher | undefined;
 export function $assignmentExpression(
   node: $AssignmentExpressionNode | undefined,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$AssignmentExpressionOrHigher | undefined {
   if (node === void 0) {
     return void 0;
@@ -541,17 +571,17 @@ export function $assignmentExpression(
 
   switch (node.kind) {
     case SyntaxKind.AsExpression:
-      return new $AsExpression(node, parent, ctx, idx);
+      return $AsExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.BinaryExpression:
-      return new $BinaryExpression(node, parent, ctx, idx);
+      return $BinaryExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ArrowFunction:
-      return new $ArrowFunction(node, parent, ctx, idx);
+      return $ArrowFunction.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ConditionalExpression:
-      return new $ConditionalExpression(node, parent, ctx, idx);
+      return $ConditionalExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.YieldExpression:
-      return new $YieldExpression(node, parent, ctx, idx);
+      return $YieldExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     default:
-      return $unaryExpression(node, parent, ctx, idx);
+      return $unaryExpression(node, idx, depth + 1, mos, realm, logger, path);
   }
 }
 
@@ -584,33 +614,36 @@ export type $$UnaryExpressionOrHigher = (
 
 export function $unaryExpression(
   node: $UnaryExpressionNode,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$UnaryExpressionOrHigher {
   switch (node.kind) {
     case SyntaxKind.JsxElement:
-      return new $JsxElement(node, parent as $$JsxParent, ctx, idx);
+      return $JsxElement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.JsxFragment:
-      return new $JsxFragment(node, parent as $$JsxParent, ctx, idx);
+      return $JsxFragment.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.JsxSelfClosingElement:
-      return new $JsxSelfClosingElement(node, parent as $$JsxParent, ctx, idx);
+      return $JsxSelfClosingElement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.PostfixUnaryExpression:
-      return new $PostfixUnaryExpression(node, parent, ctx, idx);
+      return $PostfixUnaryExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.PrefixUnaryExpression:
-      return new $PrefixUnaryExpression(node, parent, ctx, idx);
+      return $PrefixUnaryExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.AwaitExpression:
-      return new $AwaitExpression(node, parent, ctx, idx);
+      return $AwaitExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.DeleteExpression:
-      return new $DeleteExpression(node, parent, ctx, idx);
+      return $DeleteExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.TypeAssertionExpression:
-      return new $TypeAssertion(node, parent, ctx, idx);
+      return $TypeAssertion.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.TypeOfExpression:
-      return new $TypeOfExpression(node, parent, ctx, idx);
+      return $TypeOfExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.VoidExpression:
-      return new $VoidExpression(node, parent, ctx, idx);
+      return $VoidExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     default:
-      return $LHSExpression(node, parent, ctx, idx);
+      return $LHSExpression(node, idx, depth + 1, mos, realm, logger, path);
   }
 }
 
@@ -670,58 +703,61 @@ export type $$LHSExpressionOrHigher = (
 
 export function $LHSExpression(
   node: $LHSExpressionNode,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$LHSExpressionOrHigher {
   switch (node.kind) {
     case SyntaxKind.ArrayLiteralExpression:
-      return new $ArrayLiteralExpression(node, parent, ctx, idx);
+      return $ArrayLiteralExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ClassExpression:
-      return new $ClassExpression(node, parent, ctx, idx);
+      return $ClassExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.FunctionExpression:
-      return new $FunctionExpression(node, parent, ctx, idx);
+      return $FunctionExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.Identifier:
-      return new $Identifier(node, parent, ctx, idx);
+      return $Identifier.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.NewExpression:
-      return new $NewExpression(node, parent, ctx, idx);
+      return $NewExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ObjectLiteralExpression:
-      return new $ObjectLiteralExpression(node, parent, ctx, idx);
+      return $ObjectLiteralExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ParenthesizedExpression:
-      return new $ParenthesizedExpression(node, parent, ctx, idx);
+      return $ParenthesizedExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.TemplateExpression:
-      return new $TemplateExpression(node, parent, ctx, idx);
+      return $TemplateExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ElementAccessExpression:
-      return new $ElementAccessExpression(node, parent, ctx, idx);
+      return $ElementAccessExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.NonNullExpression:
-      return new $NonNullExpression(node, parent, ctx, idx);
+      return $NonNullExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.PropertyAccessExpression:
-      return new $PropertyAccessExpression(node, parent, ctx, idx);
+      return $PropertyAccessExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.TaggedTemplateExpression:
-      return new $TaggedTemplateExpression(node, parent, ctx, idx);
+      return $TaggedTemplateExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.CallExpression:
-      return new $CallExpression(node, parent, ctx, idx);
+      return $CallExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.MetaProperty:
-      return new $MetaProperty(node, parent, ctx, idx);
+      return $MetaProperty.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ThisKeyword:
-      return new $ThisExpression(node, parent, ctx, idx);
+      return $ThisExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.SuperKeyword:
-      return new $SuperExpression(node, parent, ctx, idx);
+      return $SuperExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.NumericLiteral:
-      return new $NumericLiteral(node, parent, ctx, idx);
+      return $NumericLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.BigIntLiteral:
-      return new $BigIntLiteral(node, parent, ctx, idx);
+      return $BigIntLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.StringLiteral:
-      return new $StringLiteral(node, parent, ctx, idx);
+      return $StringLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.RegularExpressionLiteral:
-      return new $RegularExpressionLiteral(node, parent, ctx, idx);
+      return $RegularExpressionLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.NoSubstitutionTemplateLiteral:
-      return new $NoSubstitutionTemplateLiteral(node, parent, ctx, idx);
+      return $NoSubstitutionTemplateLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.NullKeyword:
-      return new $NullLiteral(node, parent, ctx, idx);
+      return $NullLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.TrueKeyword:
     case SyntaxKind.FalseKeyword:
-      return new $BooleanLiteral(node, parent, ctx, idx);
+      return $BooleanLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     default:
       throw new Error(`Unexpected syntax node: ${SyntaxKind[(node as any).kind]}.`);
   }
@@ -729,32 +765,44 @@ export function $LHSExpression(
 
 export function $identifier(
   node: undefined,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): undefined;
 export function $identifier(
   node: Identifier,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $Identifier;
 export function $identifier(
   node: Identifier | undefined,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $Identifier | undefined;
 export function $identifier(
   node: Identifier | undefined,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $Identifier | undefined {
   if (node === void 0) {
     return void 0;
   }
-  return new $Identifier(node, parent, ctx, idx);
+  return $Identifier.create(node, idx, depth + 1, mos, realm, logger, path);
 }
 
 export type $$PropertyName = (
@@ -766,19 +814,22 @@ export type $$PropertyName = (
 
 export function $$propertyName(
   node: PropertyName,
-  parent: $AnyParentNode,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$PropertyName {
   switch (node.kind) {
     case SyntaxKind.Identifier:
-      return new $Identifier(node, parent, ctx, idx);
+      return $Identifier.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.StringLiteral:
-      return new $StringLiteral(node, parent, ctx, idx);
+      return $StringLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.NumericLiteral:
-      return new $NumericLiteral(node, parent, ctx, idx);
+      return $NumericLiteral.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ComputedPropertyName:
-      return new $ComputedPropertyName(node, parent as $$NamedDeclaration, ctx, idx);
+      return $ComputedPropertyName.create(node, idx, depth + 1, mos, realm, logger, path);
   }
 }
 
@@ -796,17 +847,20 @@ export type $$BindingName = (
 
 export function $$bindingName(
   node: BindingName,
-  parent: $$DestructurableBinding,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$BindingName {
   switch (node.kind) {
     case SyntaxKind.Identifier:
-      return new $Identifier(node, parent, ctx | Context.IsBindingName, idx);
+      return $Identifier.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ObjectBindingPattern:
-      return new $ObjectBindingPattern(node, parent, ctx, idx);
+      return $ObjectBindingPattern.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ArrayBindingPattern:
-      return new $ArrayBindingPattern(node, parent, ctx, idx);
+      return $ArrayBindingPattern.create(node, idx, depth + 1, mos, realm, logger, path);
   }
 }
 
@@ -871,47 +925,50 @@ export type $$ESStatement = (
 
 export function $$esStatement(
   node: $StatementNode,
-  parent: $NodeWithStatements,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$ESStatement {
   switch (node.kind) {
     case SyntaxKind.Block:
-      return new $Block(node, parent, ctx, idx);
+      return $Block.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.EmptyStatement:
-      return new $EmptyStatement(node, parent, ctx, idx);
+      return $EmptyStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ExpressionStatement:
-      return new $ExpressionStatement(node, parent, ctx, idx);
+      return $ExpressionStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.IfStatement:
-      return new $IfStatement(node, parent, ctx, idx);
+      return $IfStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.DoStatement:
-      return new $DoStatement(node, parent, ctx, idx);
+      return $DoStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.WhileStatement:
-      return new $WhileStatement(node, parent, ctx, idx);
+      return $WhileStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ForStatement:
-      return new $ForStatement(node, parent, ctx, idx);
+      return $ForStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ForInStatement:
-      return new $ForInStatement(node, parent, ctx, idx);
+      return $ForInStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ForOfStatement:
-      return new $ForOfStatement(node, parent, ctx, idx);
+      return $ForOfStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ContinueStatement:
-      return new $ContinueStatement(node, parent, ctx, idx);
+      return $ContinueStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.BreakStatement:
-      return new $BreakStatement(node, parent, ctx, idx);
+      return $BreakStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ReturnStatement:
-      return new $ReturnStatement(node, parent, ctx, idx);
+      return $ReturnStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.WithStatement:
-      return new $WithStatement(node, parent, ctx, idx);
+      return $WithStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.SwitchStatement:
-      return new $SwitchStatement(node, parent, ctx, idx);
+      return $SwitchStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.LabeledStatement:
-      return new $LabeledStatement(node, parent, ctx, idx);
+      return $LabeledStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ThrowStatement:
-      return new $ThrowStatement(node, parent, ctx, idx);
+      return $ThrowStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.TryStatement:
-      return new $TryStatement(node, parent, ctx, idx);
+      return $TryStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.DebuggerStatement:
-      return new $DebuggerStatement(node, parent, ctx, idx);
+      return $DebuggerStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     default:
       throw new Error(`Unexpected syntax node: ${SyntaxKind[(node as Node).kind]}.`);
   }
@@ -919,14 +976,39 @@ export function $$esStatement(
 
 export type $$ESVarDeclaration = (
   $FunctionDeclaration |
-  $VariableStatement |
   $VariableDeclaration
+);
+
+export type $$TSNamespaceDeclaration = (
+  $EnumDeclaration |
+  $ModuleDeclaration
 );
 
 export type $$ESDeclaration = (
   $$ESVarDeclaration |
   $ClassDeclaration
 );
+
+export type $$ValueDeclaration = (
+  $FunctionDeclaration |
+  $ClassDeclaration |
+  $VariableDeclaration |
+  $NamespaceImport |
+  $EnumDeclaration |
+  $ModuleDeclaration
+);
+
+export function isValueDeclaration(value: I$Node & { readonly $kind: SyntaxKind }): value is $$ValueDeclaration {
+  switch (value.$kind) {
+    case SyntaxKind.FunctionDeclaration:
+    case SyntaxKind.ClassDeclaration:
+    case SyntaxKind.VariableDeclaration:
+    case SyntaxKind.NamespaceImport:
+      return true;
+  }
+
+  return false;
+}
 
 export type $$TSDeclaration = (
   $InterfaceDeclaration |
@@ -946,32 +1028,38 @@ export type $$TSStatementListItem = (
 
 export function $$tsStatementListItem(
   node: $StatementNode,
-  parent: $NodeWithStatements,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$TSStatementListItem {
   switch (node.kind) {
     case SyntaxKind.VariableStatement:
-      return new $VariableStatement(node, parent, ctx, idx);
+      return $VariableStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.FunctionDeclaration:
-      return new $FunctionDeclaration(node, parent, ctx, idx);
+      return $FunctionDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.ClassDeclaration:
-      return new $ClassDeclaration(node, parent, ctx, idx);
+      return $ClassDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.InterfaceDeclaration:
-      return new $InterfaceDeclaration(node, parent, ctx, idx);
+      return $InterfaceDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.TypeAliasDeclaration:
-      return new $TypeAliasDeclaration(node, parent, ctx, idx);
+      return $TypeAliasDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.EnumDeclaration:
-      return new $EnumDeclaration(node, parent, ctx, idx);
+      return $EnumDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     default:
-      return $$esStatement(node, parent, ctx, idx);
+      return $$esStatement(node, idx, depth + 1, mos, realm, logger, path);
   }
 }
 
 export function $$tsStatementList(
   nodes: readonly $StatementNode[],
-  parent: $NodeWithStatements,
-  ctx: Context,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): readonly $$TSStatementListItem[] {
   const len = nodes.length;
   let node: $StatementNode;
@@ -983,7 +1071,7 @@ export function $$tsStatementList(
     if (node.kind === SyntaxKind.FunctionDeclaration && node.body === void 0) {
       continue;
     }
-    $nodes[x] = $$tsStatementListItem(node, parent, ctx, x);
+    $nodes[x] = $$tsStatementListItem(node, x, depth + 1, mos, realm, logger, path);
     ++x;
   }
   return $nodes;
@@ -996,17 +1084,20 @@ export type $$ESLabelledItem = (
 
 export function $$esLabelledItem(
   node: $StatementNode,
-  parent: $NodeWithStatements,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$ESLabelledItem {
   switch (node.kind) {
     case SyntaxKind.VariableStatement:
-      return new $VariableStatement(node, parent, ctx, idx);
+      return $VariableStatement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.FunctionDeclaration:
-      return new $FunctionDeclaration(node, parent, ctx, idx);
+      return $FunctionDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     default:
-      return $$esStatement(node, parent, ctx, idx);
+      return $$esStatement(node, idx, depth + 1, mos, realm, logger, path);
   }
 }
 
@@ -1014,8 +1105,24 @@ export function $$esLabelledItem(
 
 // #region AST helpers
 
+export type DirectivePrologue = readonly ExpressionStatement_T<StringLiteral>[] & {
+  readonly ContainsUseStrict: boolean;
+  readonly lastIndex: number;
+};
+type MutableDirectivePrologue = ExpressionStatement_T<StringLiteral>[] & {
+  ContainsUseStrict?: boolean;
+  lastIndex?: number;
+};
+
+export const NoDirectiveProgue = (function () {
+  const value = [] as MutableDirectivePrologue;
+  value.ContainsUseStrict = false;
+  value.lastIndex = -1;
+  return Object.freeze(value) as DirectivePrologue;
+})();
+
 export function GetDirectivePrologue(statements: readonly Statement[]): DirectivePrologue {
-  let directivePrologue: ExpressionStatement_T<StringLiteral>[] = emptyArray;
+  let directivePrologue = NoDirectiveProgue as MutableDirectivePrologue;
 
   let statement: ExpressionStatement_T<StringLiteral>;
   const len = statements.length;
@@ -1025,20 +1132,22 @@ export function GetDirectivePrologue(statements: readonly Statement[]): Directiv
       statement.kind === SyntaxKind.ExpressionStatement
       && statement.expression.kind === SyntaxKind.StringLiteral
     ) {
-      if (directivePrologue === emptyArray) {
+      if (directivePrologue === NoDirectiveProgue) {
         directivePrologue = [statement];
+        directivePrologue.ContainsUseStrict = false;
       } else {
         directivePrologue.push(statement);
       }
       if (statement.expression.text === 'use strict') {
-        (directivePrologue as Writable<DirectivePrologue>).ContainsUseStrict = true;
+        directivePrologue.ContainsUseStrict = true;
       }
+      directivePrologue.lastIndex = i;
     } else {
       break;
     }
   }
 
-  return directivePrologue;
+  return directivePrologue as DirectivePrologue;
 }
 
 export function GetExpectedArgumentCount(params: readonly $ParameterDeclaration[]): number {
@@ -1135,11 +1244,11 @@ export function BlockDeclarationInstantiation(
       // 4. a. i. If IsConstantDeclaration of d is true, then
       if (d.IsConstantDeclaration) {
         // 4. a. i. 1. Perform ! envRec.CreateImmutableBinding(dn, true).
-        envRec.CreateImmutableBinding(ctx, dn, intrinsics.true);
+        envRec.CreateImmutableBinding(ctx, dn, intrinsics.true, null);
       } else {
         // 4. a. ii. Else,
         // 4. a. ii. 1. Perform ! envRec.CreateMutableBinding(dn, false).
-        envRec.CreateImmutableBinding(ctx, dn, intrinsics.false);
+        envRec.CreateImmutableBinding(ctx, dn, intrinsics.false, null);
       }
     }
 
@@ -1200,21 +1309,24 @@ export type $NodeWithDecorators = (
 
 export function $decoratorList(
   nodes: readonly Decorator[] | undefined,
-  parent: $NodeWithDecorators,
-  ctx: Context,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): readonly $Decorator[] {
   if (nodes === void 0 || nodes.length === 0) {
     return emptyArray;
   }
 
   if (nodes.length === 1) {
-    return [new $Decorator(nodes[0], parent, ctx, 0)];
+    return [$Decorator.create(nodes[0], 0, depth + 1, mos, realm, logger, path)];
   }
 
   const len = nodes.length;
   const $nodes: $Decorator[] = Array(len);
   for (let i = 0; i < len; ++i) {
-    $nodes[i] = new $Decorator(nodes[i], parent, ctx, i);
+    $nodes[i] = $Decorator.create(nodes[i], i, depth + 1, mos, realm, logger, path);
   }
   return $nodes;
 }
@@ -1237,8 +1349,11 @@ export function getReferencedBindings<T>(obj: { ReferencedBindings: T }): T { re
 
 export function $heritageClauseList(
   nodes: readonly HeritageClause[] | undefined,
-  parent: $$NodeWithHeritageClauses,
-  ctx: Context,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): readonly $HeritageClause[] {
   if (nodes === void 0 || nodes.length === 0) {
     return emptyArray;
@@ -1247,15 +1362,18 @@ export function $heritageClauseList(
   const len = nodes.length;
   const $nodes: $HeritageClause[] = Array(len);
   for (let i = 0; i < len; ++i) {
-    $nodes[i] = new $HeritageClause(nodes[i], parent, ctx, i);
+    $nodes[i] = $HeritageClause.create(nodes[i], i, depth + 1, mos, realm, logger, path);
   }
   return $nodes;
 }
 
 export function $$classElementList(
   nodes: readonly $ClassElementNode[] | undefined,
-  parent: $ClassDeclaration | $ClassExpression,
-  ctx: Context,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): readonly $$ClassElement[] {
   if (nodes === void 0 || nodes.length === 0) {
     return emptyArray;
@@ -1267,11 +1385,21 @@ export function $$classElementList(
   let node: $ClassElementNode;
   for (let i = 0; i < len; ++i) {
     node = nodes[i];
-    if ((node as { body?: Block }).body !== void 0) {
-      $node = $$classElement(nodes[i], parent, ctx, i);
-      if ($node !== void 0) {
-        $nodes.push($node);
-      }
+    switch (node.kind) {
+      case SyntaxKind.Constructor:
+      case SyntaxKind.MethodDeclaration:
+        if (node.body !== void 0) {
+          $node = $$classElement(node, i, depth + 1, mos, realm, logger, path);
+          if ($node !== void 0) {
+            $nodes.push($node);
+          }
+        }
+        break;
+      default:
+        $node = $$classElement(node, i, depth + 1, mos, realm, logger, path);
+        if ($node !== void 0) {
+          $nodes.push($node);
+        }
     }
   }
   return $nodes;
@@ -1286,25 +1414,32 @@ export type $$ClassElement = (
   $PropertyDeclaration
 );
 
+export function isDecorated<T extends { readonly isDecorated: boolean }>(value: T): value is (T extends { readonly isDecorated: false } ? never : T) {
+  return value.isDecorated;
+}
+
 export function $$classElement(
   node: $ClassElementNode,
-  parent: $ClassDeclaration | $ClassExpression,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$ClassElement | undefined {
   switch (node.kind) {
     case SyntaxKind.PropertyDeclaration:
-      return new $PropertyDeclaration(node, parent, ctx, idx);
+      return $PropertyDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.SemicolonClassElement:
-      return new $SemicolonClassElement(node, parent, ctx, idx);
+      return $SemicolonClassElement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.MethodDeclaration:
-      return new $MethodDeclaration(node, parent, ctx, idx);
+      return $MethodDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.Constructor:
-      return new $ConstructorDeclaration(node, parent, ctx, idx);
+      return $ConstructorDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.GetAccessor:
-      return new $GetAccessorDeclaration(node, parent, ctx, idx);
+      return $GetAccessorDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.SetAccessor:
-      return new $SetAccessorDeclaration(node, parent, ctx, idx);
+      return $SetAccessorDeclaration.create(node, idx, depth + 1, mos, realm, logger, path);
     default:
       return void 0;
   }
@@ -1328,28 +1463,6 @@ export function hasAllBits(flag: number, bit: number): boolean {
 
 export function clearBit(flag: number, bit: number): number {
   return (flag | bit) ^ bit;
-}
-
-export const enum Context {
-  None                      = 0b00000000000000000,
-  Dynamic                   = 0b00000000000000010,
-  InVariableStatement       = 0b00000000000000100,
-  IsBindingName             = 0b00000000000001000,
-  InParameterDeclaration    = 0b00000000000010000,
-  InCatchClause             = 0b00000000000100000,
-  InBindingPattern          = 0b00000000001000000,
-  InTypeElement             = 0b00000000010000000,
-  IsPropertyAccessName      = 0b00000000100000000,
-  IsMemberName              = 0b00000001000000000,
-  IsLabel                   = 0b00000010000000000,
-  IsLabelReference          = 0b00000100000000000,
-  InExport                  = 0b00001000000000000,
-  IsConst                   = 0b00010000000000000,
-  IsLet                     = 0b00100000000000000,
-  IsBlockScoped             = 0b00110000000000000,
-  IsVar                     = 0b01000000000000000,
-  IsFunctionScoped          = 0b01000000000000000,
-  InStrictMode              = 0b10000000000000000,
 }
 
 export const modifiersToModifierFlags = (function () {
@@ -1408,6 +1521,367 @@ export interface I$Node<
   readonly realm: Realm;
   readonly parent: I$Node;
   readonly node: TNode;
-  readonly ctx: Context;
   readonly path: string;
+}
+
+export class TransformationContext {
+  public propertyAssignments: ExpressionStatement[] | undefined = void 0;
+}
+
+export const enum HydrateContext {
+  None              = 0,
+  ContainsUseStrict = 1,
+}
+
+type Transformable<T> = {
+  transform(tctx: TransformationContext): T | readonly T[] | undefined;
+  readonly node: T;
+};
+
+export function transformList<T>(
+  tctx: TransformationContext,
+  transformableList: readonly Transformable<T>[],
+  nodeList: readonly T[],
+): readonly T[] | undefined {
+  let transformedList: T[] | undefined = void 0;
+  let transformable: Transformable<T> | undefined;
+  let transformed: T | readonly T[] | undefined;
+
+  let x = 0;
+  for (let i = 0, ii = transformableList.length; i < ii; ++i) {
+    transformed = (transformable = transformableList[i]).transform(tctx);
+    if (transformedList === void 0) {
+      if (transformed === void 0) {
+        transformedList = nodeList.slice(0, x = i);
+      } else if (transformed !== transformable.node) {
+        transformedList = nodeList.slice(0, x = i);
+        if (transformed instanceof Array) {
+          for (let j = 0, jj = transformed.length; j < jj; ++j) {
+            transformedList[x++] = transformed[j];
+          }
+        } else {
+          transformedList[x++] = transformed as T;
+        }
+      }
+    } else if (transformed !== void 0) {
+      if (transformed instanceof Array) {
+        for (let j = 0, jj = transformed.length; j < jj; ++j) {
+          transformedList[x++] = transformed[j];
+        }
+      } else {
+        transformedList[x++] = transformed as T;
+      }
+    }
+  }
+
+  return transformedList;
+}
+
+export function transformModifiers(
+  modifiers: readonly Modifier[],
+): readonly Modifier[] | undefined {
+  let transformedList: Modifier[] | undefined = void 0;
+  let modifier: Modifier;
+
+  let x = 0;
+  for (let i = 0, ii = modifiers.length; i < ii; ++i) {
+    modifier = modifiers[i];
+    switch (modifier.kind) {
+      case SyntaxKind.ConstKeyword:
+      case SyntaxKind.DeclareKeyword:
+      case SyntaxKind.AbstractKeyword:
+      case SyntaxKind.PublicKeyword:
+      case SyntaxKind.PrivateKeyword:
+      case SyntaxKind.ProtectedKeyword:
+      case SyntaxKind.ReadonlyKeyword:
+        if (transformedList === void 0) {
+          transformedList = modifiers.slice(0, x = i);
+        }
+        break;
+      case SyntaxKind.AsyncKeyword:
+      case SyntaxKind.DefaultKeyword:
+      case SyntaxKind.ExportKeyword:
+      case SyntaxKind.StaticKeyword:
+        if (transformedList !== void 0) {
+          transformedList[x++] = modifier;
+        }
+        break;
+    }
+  }
+
+  return transformedList;
+}
+
+type SerializedTypeNode = Identifier | PropertyAccessExpression | VoidExpression;
+
+export function createReflectDecorateCall(
+  decorators: Expression[],
+  target: Expression,
+  memberName?: Expression,
+  descriptor?: Expression,
+): CallExpression {
+  const argumentsArray = [
+    createArrayLiteral(
+      /* elements */decorators,
+      /* multiLine */true,
+    ),
+    target,
+  ];
+  if (memberName !== void 0) {
+    argumentsArray.push(memberName);
+    if (descriptor !== void 0) {
+      argumentsArray.push(descriptor);
+    }
+  }
+
+  return createCall(
+    /* expression */createPropertyAccess(
+      /* expression */createIdentifier('Reflect'),
+      /* name */createIdentifier('decorate'),
+    ),
+    /* typeArguments */void 0,
+    /* argumentsArray */argumentsArray,
+  );
+}
+
+export function createGetOwnPropertyDescriptorCall(
+  obj: Expression,
+  prop: Expression,
+): CallExpression {
+  return createCall(
+    /* expression */createPropertyAccess(
+      /* expression */createIdentifier('Object'),
+      /* name */createIdentifier('getOwnPropertyDescriptor'),
+    ),
+    /* typeArguments */void 0,
+    /* argumentsArray */[obj, prop],
+  );
+}
+
+export function createReflectMetadataCall(
+  key: string,
+  value: Expression,
+): CallExpression {
+  return createCall(
+    /* expression */createPropertyAccess(
+      /* expression */createIdentifier('Reflect'),
+      /* name */createIdentifier('metadata'),
+    ),
+    /* typeArguments */void 0,
+    /* argumentsArray */[
+      createLiteral(key),
+      value,
+    ],
+  );
+}
+
+export function createParamHelper(
+  expression: Expression,
+  parameterOffset: number,
+): FunctionExpression {
+  return createFunctionExpression(
+    /* modifiers */void 0,
+    /* asteriskToken */void 0,
+    /* name */void 0,
+    /* typeParameters */void 0,
+    /* parameters */[
+      createParameter(
+        /* decorators */void 0,
+        /* modifiers */void 0,
+        /* dotDotDotToken */void 0,
+        /* name */createIdentifier('target'),
+      ),
+      createParameter(
+        /* decorators */void 0,
+        /* modifiers */void 0,
+        /* dotDotDotToken */void 0,
+        /* name */createIdentifier('key'),
+      ),
+    ],
+    /* type */void 0,
+    /* body */createBlock(
+      [
+        createExpressionStatement(
+          createCall(
+            /* expression */expression,
+            /* typeArguments */void 0,
+            /* argumentsArray */[
+              createIdentifier('target'),
+              createIdentifier('key'),
+              createNumericLiteral(parameterOffset.toString()),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+export function serializeTypeOfNode(
+  mos: $ESModule,
+  node: Node,
+): SerializedTypeNode {
+  switch (node.kind) {
+    case SyntaxKind.PropertyDeclaration:
+    case SyntaxKind.Parameter:
+      return serializeTypeNode(mos, (node as PropertyDeclaration | ParameterDeclaration | GetAccessorDeclaration).type);
+    case SyntaxKind.SetAccessor:
+      return serializeTypeNode(
+        mos,
+        (node as SetAccessorDeclaration).parameters.length > 0
+          ? (node as SetAccessorDeclaration).parameters[0].type
+          : void 0
+      );
+    case SyntaxKind.GetAccessor:
+      return serializeTypeNode(mos, (node as GetAccessorDeclaration).type);
+    case SyntaxKind.ClassDeclaration:
+    case SyntaxKind.ClassExpression:
+    case SyntaxKind.MethodDeclaration:
+      return createIdentifier("Function");
+    default:
+      return createVoidZero();
+  }
+}
+
+export function serializeTypeNode(
+  mos: $ESModule,
+  node: TypeNode | undefined,
+): SerializedTypeNode {
+  if (node === undefined) {
+    return createIdentifier("Object");
+  }
+
+  switch (node.kind) {
+    case SyntaxKind.VoidKeyword:
+    case SyntaxKind.UndefinedKeyword:
+    case SyntaxKind.NullKeyword:
+    case SyntaxKind.NeverKeyword:
+      return createVoidZero();
+    case SyntaxKind.ParenthesizedType:
+      return serializeTypeNode(mos, (node as ParenthesizedTypeNode).type);
+    case SyntaxKind.FunctionType:
+    case SyntaxKind.ConstructorType:
+      return createIdentifier("Function");
+    case SyntaxKind.ArrayType:
+    case SyntaxKind.TupleType:
+      return createIdentifier("Array");
+    case SyntaxKind.TypePredicate:
+    case SyntaxKind.BooleanKeyword:
+      return createIdentifier("Boolean");
+    case SyntaxKind.StringKeyword:
+      return createIdentifier("String");
+    case SyntaxKind.ObjectKeyword:
+      return createIdentifier("Object");
+    case SyntaxKind.LiteralType:
+      switch ((node as LiteralTypeNode).literal.kind) {
+        case SyntaxKind.StringLiteral:
+          return createIdentifier("String");
+        case SyntaxKind.PrefixUnaryExpression:
+        case SyntaxKind.NumericLiteral:
+          return createIdentifier("Number");
+        case SyntaxKind.BigIntLiteral:
+          return createIdentifier("BigInt");
+        case SyntaxKind.TrueKeyword:
+        case SyntaxKind.FalseKeyword:
+          return createIdentifier("Boolean");
+        default:
+          throw new Error(`Unexpected node type: ${SyntaxKind[(node as LiteralTypeNode).literal.kind]}`);
+      }
+    case SyntaxKind.NumberKeyword:
+      return createIdentifier("Number");
+    case SyntaxKind.BigIntKeyword:
+      return createIdentifier("BigInt");
+    case SyntaxKind.SymbolKeyword:
+      return createIdentifier("Symbol");
+    case SyntaxKind.TypeReference:
+      return serializeEntityName(mos, (node as TypeReferenceNode).typeName);
+    case SyntaxKind.IntersectionType:
+    case SyntaxKind.UnionType:
+    case SyntaxKind.ConditionalType:
+      return createIdentifier("Object");
+    case SyntaxKind.TypeOperator:
+      if ((node as TypeOperatorNode).operator === SyntaxKind.ReadonlyKeyword) {
+        return serializeTypeNode(mos, (node as TypeOperatorNode).type);
+      }
+      break;
+    case SyntaxKind.TypeQuery:
+    case SyntaxKind.IndexedAccessType:
+    case SyntaxKind.MappedType:
+    case SyntaxKind.TypeLiteral:
+    case SyntaxKind.AnyKeyword:
+    case SyntaxKind.UnknownKeyword:
+    case SyntaxKind.ThisType:
+    case SyntaxKind.ImportType:
+      break;
+    default:
+      throw new Error(`Unexpected node type: ${SyntaxKind[node.kind]}`);
+  }
+
+  return createIdentifier("Object");
+}
+
+function serializeEntityName(
+  mos: $ESModule,
+  node: EntityName,
+): PropertyAccessExpression | Identifier {
+  switch (node.kind) {
+    case SyntaxKind.Identifier: {
+      const localImport = mos.ImportedLocalNames.find(x => x['[[Value]]'] === node.text);
+      if (localImport !== void 0) {
+        const imports = mos.$statements.filter(x => x.$kind === SyntaxKind.ImportDeclaration) as $ImportDeclaration[];
+        const theImport = imports.find(x => x.ImportEntries.some(i => i.LocalName['[[Value]]'] === node.text));
+        mos = mos.ws.ResolveImportedModule(mos.realm, mos, theImport!.$moduleSpecifier.Value) as $ESModule;
+      }
+      const decl = mos.getDeclaringNode(new $String(mos.realm, node.text));
+      if (decl === null) {
+        return createIdentifier('Object');
+      }
+      return createIdentifier(node.text);
+    }
+    case SyntaxKind.QualifiedName:
+      return serializeQualifiedName(mos, node);
+  }
+}
+
+function serializeQualifiedName(
+  mos: $ESModule,
+  node: QualifiedName,
+): PropertyAccessExpression {
+  return createPropertyAccess(serializeEntityName(mos, node.left), node.right);
+}
+
+export function serializeParameterTypesOfNode(
+  mos: $ESModule,
+  node: $ClassExpression | $ClassDeclaration | $MethodDeclaration | $ConstructorDeclaration | $SetAccessorDeclaration | $GetAccessorDeclaration,
+): ArrayLiteralExpression {
+  let valueDeclaration: $ConstructorDeclaration | $MethodDeclaration | $SetAccessorDeclaration | $GetAccessorDeclaration | undefined;
+  switch (node.$kind) {
+    case SyntaxKind.ClassExpression:
+    case SyntaxKind.ClassDeclaration:
+      valueDeclaration = node.ConstructorMethod;
+      break;
+    case SyntaxKind.MethodDeclaration:
+    case SyntaxKind.Constructor:
+    case SyntaxKind.SetAccessor:
+    case SyntaxKind.GetAccessor:
+      valueDeclaration = node;
+      break;
+  }
+
+  return createArrayLiteral(
+    valueDeclaration.$parameters.skipThisKeyword().map(x => serializeTypeOfNode(mos, x.node)),
+  );
+}
+
+export function serializeReturnTypeOfNode(
+  mos: $ESModule,
+  $node: $MethodDeclaration,
+): SerializedTypeNode {
+  if ($node.node.type !== void 0) {
+    return serializeTypeNode(mos, $node.node.type);
+  } else if (hasBit($node.modifierFlags, ModifierFlags.Async) && $node.node.asteriskToken === void 0) {
+    return createIdentifier("Promise");
+  }
+
+  return createVoidZero();
 }

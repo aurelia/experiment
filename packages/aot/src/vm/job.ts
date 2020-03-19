@@ -33,7 +33,7 @@ export abstract class Job<MOS extends $$ESModuleOrScript = $$ESModuleOrScript> i
     this['[[ScriptOrModule]]'] = scriptOrModule;
   }
 
-  public abstract Run(ctx: ExecutionContext): $Any;
+  public abstract Run(ctx: ExecutionContext): Promise<$Any>;
 
   public dispose(this: Writable<Partial<Job>>): void {
     this['[[Realm]]'] = void 0;

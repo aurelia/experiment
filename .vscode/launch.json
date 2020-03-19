@@ -86,6 +86,28 @@
       "skipFiles": [
         "<node_internals>/**"
       ]
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Run au tests",
+      "cwd": "${workspaceFolder}",
+      "program": "${workspaceFolder}\\packages\\au\\dist\\esnext\\index.js",
+      "runtimeArgs": [
+        "-r",
+        "esm"
+      ],
+      "args": [
+        "test",
+        "--entryfile",
+        "${workspaceFolder}\\packages\\__tests__\\setup-au.ts",
+        "--scratchdir",
+        "${workspaceFolder}\\packages\\__tests__\\dist\\__au"
+      ],
+      "skipFiles": [
+        "<node_internals>/**",
+        "**/esm.js"
+      ]
     }
   ]
 }

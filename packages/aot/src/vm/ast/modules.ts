@@ -1,3 +1,4 @@
+/* eslint-disable no-await-in-loop */
 import {
   ExportAssignment,
   ExportDeclaration,
@@ -19,6 +20,15 @@ import {
   SourceFile,
   StringLiteral,
   SyntaxKind,
+  createNamedExports,
+  createNodeArray,
+  NodeArray,
+  Statement,
+  createImportDeclaration,
+  createStringLiteral,
+  createExportDeclaration,
+  createNamedImports,
+  createImportClause,
 } from 'typescript';
 import {
   PLATFORM,
@@ -26,12 +36,12 @@ import {
   Writable,
 } from '@aurelia/kernel';
 import {
-  IFile,
   $CompilerOptions,
-} from '../../system/interfaces';
+} from '../interfaces';
 import {
+  FileEntry,
   NPMPackage,
-} from '../../system/npm-package-loader';
+} from '@aurelia/runtime-node';
 import {
   IModule,
   ResolveSet,
@@ -44,6 +54,7 @@ import {
   $EnvRec,
   $FunctionEnvRec,
   $GlobalEnvRec,
+  $Binding,
 } from '../types/environment-record';
 import {
   $NamespaceExoticObject,
@@ -68,8 +79,8 @@ import {
   $Empty,
 } from '../types/empty';
 import {
-  IModuleResolver,
-} from '../../service-host';
+  Workspace,
+} from '../workspace';
 import {
   $Error,
   $SyntaxError,
@@ -80,7 +91,6 @@ import {
 } from '../types/list';
 import {
   I$Node,
-  Context,
   $$ESDeclaration,
   modifiersToModifierFlags,
   hasBit,
@@ -102,6 +112,13 @@ import {
   $i,
   $ESStatementListItemNode,
   $$ESVarDeclaration,
+  TransformationContext,
+  transformList,
+  DirectivePrologue,
+  HydrateContext,
+  $$ValueDeclaration,
+  isValueDeclaration,
+  $$TSNamespaceDeclaration,
 } from './_shared';
 import {
   $Identifier,
@@ -110,7 +127,6 @@ import {
   $ClassDeclaration,
 } from './classes';
 import {
-  DirectivePrologue,
   $VariableStatement,
   $Block,
   $EmptyStatement,
@@ -138,6 +154,8 @@ import {
   $InterfaceDeclaration,
   $TypeAliasDeclaration,
   $EnumDeclaration,
+  $ModuleBlock,
+  $ModuleDeclaration,
 } from './types';
 import {
   $StringLiteral,
@@ -145,6 +163,12 @@ import {
 import {
   $StringSet,
 } from '../globals/string';
+import {
+  MaybePromise,
+  awaitIfPromise,
+  computeRelativeDirectory,
+  trueThunk,
+} from '../util';
 
 const {
   emptyArray,
@@ -172,7 +196,7 @@ export type $$ESModuleOrScript = (
 
 // http://www.ecma-international.org/ecma-262/#sec-scripts
 export class $ESScript implements I$Node {
-  public readonly '<$ESScript>': unknown;
+  public '<$ESScript>'!: unknown;
 
   public disposed: boolean = false;
 
@@ -181,32 +205,31 @@ export class $ESScript implements I$Node {
 
   public readonly path: string;
 
-  public readonly mos: $ESScript = this;
+  public mos: $ESScript = this;
   public readonly parent: $ESScript = this;
-  public readonly ctx: Context = Context.None;
-  public readonly depth: number = 0;
+  public depth: number = 0;
 
-  public readonly $statements: readonly $$ESStatementListItem[];
+  public $statements!: readonly $$ESStatementListItem[];
 
-  public readonly DirectivePrologue: DirectivePrologue;
+  public DirectivePrologue!: DirectivePrologue;
 
-  public ExecutionResult: $Any; // Temporary property for testing purposes
+  public ExecutionResult!: $Any; // Temporary property for testing purposes
 
   // http://www.ecma-international.org/ecma-262/#sec-scripts-static-semantics-lexicallydeclarednames
   // 15.1.3 Static Semantics: LexicallyDeclaredNames
-  public readonly LexicallyDeclaredNames: readonly $String[];
+  public LexicallyDeclaredNames!: readonly $String[];
 
   // http://www.ecma-international.org/ecma-262/#sec-scripts-static-semantics-lexicallyscopeddeclarations
   // 15.1.4 Static Semantics: LexicallyScopedDeclarations
-  public readonly LexicallyScopedDeclarations: readonly $$ESDeclaration[];
+  public LexicallyScopedDeclarations!: readonly $$ESDeclaration[];
 
   // http://www.ecma-international.org/ecma-262/#sec-scripts-static-semantics-vardeclarednames
   // 15.1.5 Static Semantics: VarDeclaredNames
-  public readonly VarDeclaredNames: readonly $String[];
+  public VarDeclaredNames!: readonly $String[];
 
   // http://www.ecma-international.org/ecma-262/#sec-scripts-static-semantics-varscopeddeclarations
   // 15.1.6 Static Semantics: VarScopedDeclarations
-  public readonly VarScopedDeclarations: readonly Exclude<$$ESDeclaration, $ClassDeclaration>[];
+  public VarScopedDeclarations!: readonly Exclude<$$ESDeclaration, $ClassDeclaration>[];
 
   public get isNull(): false { return false; }
   public get isScript(): true { return true; }
@@ -214,175 +237,187 @@ export class $ESScript implements I$Node {
 
   public constructor(
     public readonly logger: ILogger,
-    public readonly $file: IFile,
+    public readonly $file: FileEntry,
     public readonly node: SourceFile,
     public readonly realm: Realm,
+    public readonly ws: Workspace,
   ) {
-    const intrinsics = realm['[[Intrinsics]]'];
+    this.path = `ESScript<(...)${$file.path.slice(ws.lastCommonRootDir.length)}>`;
+  }
 
-    this.ExecutionResult = intrinsics.empty;
+  public static create(
+    logger: ILogger,
+    $file: FileEntry,
+    node: SourceFile,
+    realm: Realm,
+    ws: Workspace,
+  ): $ESScript {
+    logger = logger.root;
+    const $node = new $ESScript(logger, $file, node, realm, ws);
+    const path = $node.path;
 
-    this['[[Environment]]'] = intrinsics.undefined;
-
-    this.path = `ESScript<(...)${$file.rootlessPath}>`;
-    this.logger = logger.root;
-
-    let ctx = Context.None;
-    this.DirectivePrologue = GetDirectivePrologue(node.statements);
-    if (this.DirectivePrologue.ContainsUseStrict) {
-      ctx |= Context.InStrictMode;
-    }
-
-    const LexicallyDeclaredNames = this.LexicallyDeclaredNames = [] as $String[];
-    const LexicallyScopedDeclarations = this.LexicallyScopedDeclarations = [] as $$ESDeclaration[];
-    const VarDeclaredNames = this.VarDeclaredNames = [] as $String[];
-    const VarScopedDeclarations = this.VarScopedDeclarations = [] as Exclude<$$ESDeclaration, $ClassDeclaration>[];
-
-    const $statements = this.$statements = [] as $$ESStatementListItem[];
+    const $statements = $node.$statements = [] as $$ESStatementListItem[];
     const statements = node.statements as readonly $ESStatementListItemNode[];
     let stmt: $ESStatementListItemNode;
-    let $stmt: $$ESStatementListItem;
     let s = 0;
     for (let i = 0, ii = statements.length; i < ii; ++i) {
       stmt = statements[i];
 
       switch (stmt.kind) {
         case SyntaxKind.VariableStatement:
-          $stmt = $statements[s] = new $VariableStatement(stmt, this, ctx, s);
-          ++s;
-
-          if ($stmt.isLexical) {
-            LexicallyDeclaredNames.push(...$stmt.BoundNames);
-            LexicallyScopedDeclarations.push($stmt);
-          } else {
-            VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-            VarScopedDeclarations.push($stmt);
-          }
-
+          ($statements[s] = $VariableStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.FunctionDeclaration:
-          $stmt = $statements[s] = new $FunctionDeclaration(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.BoundNames);
-          VarScopedDeclarations.push($stmt);
+          ($statements[s] = $FunctionDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ClassDeclaration:
-          $stmt = $statements[s] = new $ClassDeclaration(stmt, this, ctx, s);
-          ++s;
-
-          LexicallyDeclaredNames.push(...$stmt.BoundNames);
-          LexicallyScopedDeclarations.push($stmt);
+          ($statements[s] = $ClassDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.Block:
-          $stmt = $statements[s] = new $Block(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $Block.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.EmptyStatement:
-          $stmt = $statements[s] = new $EmptyStatement(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $EmptyStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ExpressionStatement:
-          $stmt = $statements[s] = new $ExpressionStatement(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $ExpressionStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.IfStatement:
-          $stmt = $statements[s] = new $IfStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $IfStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.DoStatement:
-          $stmt = $statements[s] = new $DoStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $DoStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.WhileStatement:
-          $stmt = $statements[s] = new $WhileStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $WhileStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ForStatement:
-          $stmt = $statements[s] = new $ForStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $ForStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ForInStatement:
-          $stmt = $statements[s] = new $ForInStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $ForInStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ForOfStatement:
-          $stmt = $statements[s] = new $ForOfStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $ForOfStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ContinueStatement:
-          $stmt = $statements[s] = new $ContinueStatement(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $ContinueStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.BreakStatement:
-          $stmt = $statements[s] = new $BreakStatement(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $BreakStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ReturnStatement:
-          $stmt = $statements[s] = new $ReturnStatement(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $ReturnStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.WithStatement:
-          $stmt = $statements[s] = new $WithStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $WithStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.SwitchStatement:
-          $stmt = $statements[s] = new $SwitchStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $SwitchStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.LabeledStatement:
-          $stmt = $statements[s] = new $LabeledStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.TopLevelVarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.TopLevelVarScopedDeclarations);
+          ($statements[s] = $LabeledStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ThrowStatement:
-          $stmt = $statements[s] = new $ThrowStatement(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $ThrowStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.TryStatement:
-          $stmt = $statements[s] = new $TryStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          ($statements[s] = $TryStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.DebuggerStatement:
-          $stmt = $statements[s] = new $DebuggerStatement(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $DebuggerStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         default:
           throw new Error(`Unexpected syntax node: ${SyntaxKind[(node as Node).kind]}.`);
       }
     }
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    const intrinsics = this.realm['[[Intrinsics]]'];
+
+    this.ExecutionResult = intrinsics.empty;
+
+    this['[[Environment]]'] = intrinsics.undefined;
+
+    if ((this.DirectivePrologue = GetDirectivePrologue(this.node.statements)).ContainsUseStrict) {
+      ctx |= HydrateContext.ContainsUseStrict;
+    }
+
+    this.$statements.forEach(x => x.hydrate(ctx));
+
+    const LexicallyDeclaredNames = this.LexicallyDeclaredNames = [] as $String[];
+    const LexicallyScopedDeclarations = this.LexicallyScopedDeclarations = [] as $$ESDeclaration[];
+    const VarDeclaredNames = this.VarDeclaredNames = [] as $String[];
+    const VarScopedDeclarations = this.VarScopedDeclarations = [] as Exclude<$$ESDeclaration, $ClassDeclaration>[];
+
+    const $statements = this.$statements;
+    let $stmt: $$TSModuleItem;
+    for (let i = 0, ii = $statements.length; i < ii; ++i) {
+      $stmt = $statements[i];
+
+      switch ($stmt.$kind) {
+        case SyntaxKind.VariableStatement:
+          if ($stmt.isLexical) {
+            LexicallyDeclaredNames.push(...$stmt.BoundNames);
+            LexicallyScopedDeclarations.push(...$stmt.$declarationList.$declarations);
+          } else {
+            VarDeclaredNames.push(...$stmt.VarDeclaredNames);
+            VarScopedDeclarations.push(...$stmt.$declarationList.$declarations);
+          }
+
+          break;
+        case SyntaxKind.FunctionDeclaration:
+          VarDeclaredNames.push(...$stmt.BoundNames);
+          VarScopedDeclarations.push($stmt);
+          break;
+        case SyntaxKind.ClassDeclaration:
+          LexicallyDeclaredNames.push(...$stmt.BoundNames);
+          LexicallyScopedDeclarations.push($stmt);
+          break;
+        case SyntaxKind.Block:
+        case SyntaxKind.IfStatement:
+        case SyntaxKind.DoStatement:
+        case SyntaxKind.WhileStatement:
+        case SyntaxKind.ForStatement:
+        case SyntaxKind.ForInStatement:
+        case SyntaxKind.ForOfStatement:
+        case SyntaxKind.WithStatement:
+        case SyntaxKind.SwitchStatement:
+        case SyntaxKind.TryStatement:
+          VarDeclaredNames.push(...$stmt.VarDeclaredNames);
+          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
+          break;
+        case SyntaxKind.LabeledStatement:
+          VarDeclaredNames.push(...$stmt.TopLevelVarDeclaredNames);
+          VarScopedDeclarations.push(...$stmt.TopLevelVarScopedDeclarations);
+          break;
+        default:
+          throw new Error(`Unexpected syntax node: ${SyntaxKind[(this.node as Node).kind]}.`);
+      }
+    }
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] | undefined {
+    const transformedStatements = transformList(tctx, this.$statements, this.node.statements as readonly $$TSModuleItem['node'][]);
+
+    if (transformedStatements === void 0) {
+      return this.node;
+    }
+
+    if (transformedStatements.length === 0) {
+      return void 0;
+    }
+
+    return {
+      ...this.node,
+      statements: createNodeArray(transformedStatements) as NodeArray<Statement>,
+    };
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-globaldeclarationinstantiation
@@ -500,6 +535,7 @@ export class $ESScript implements I$Node {
             if (!declaredVarNames.has(vn)) {
               // 12. a. i. 1. c. i. Append vn to declaredVarNames.
               declaredVarNames.add(vn);
+              vn.declaringNode = d;
             }
           }
         }
@@ -519,13 +555,13 @@ export class $ESScript implements I$Node {
         // 16. b. i. If IsConstantDeclaration of d is true, then
         if (d.IsConstantDeclaration) {
           // 16. b. i. 1. Perform ? envRec.CreateImmutableBinding(dn, true).
-          const $CreateImmutableBindingResult = envRec.CreateImmutableBinding(ctx, dn, intrinsics.true);
+          const $CreateImmutableBindingResult = envRec.CreateImmutableBinding(ctx, dn, intrinsics.true, d);
           if ($CreateImmutableBindingResult.isAbrupt) { return $CreateImmutableBindingResult.enrichWith(ctx, this); }
         }
         // 16. b. ii. Else,
         else {
           // 16. b. ii. 1. Perform ? envRec.CreateMutableBinding(dn, false).
-          const $CreateImmutableBindingResult = envRec.CreateImmutableBinding(ctx, dn, intrinsics.false);
+          const $CreateImmutableBindingResult = envRec.CreateImmutableBinding(ctx, dn, intrinsics.false, d);
           if ($CreateImmutableBindingResult.isAbrupt) { return $CreateImmutableBindingResult.enrichWith(ctx, this); }
         }
       }
@@ -541,14 +577,14 @@ export class $ESScript implements I$Node {
       if (fo.isAbrupt) { return fo.enrichWith(ctx, this); }
 
       // 17. c. Perform ? envRec.CreateGlobalFunctionBinding(fn, fo, false).
-      const $CreateGlobalFunctionBindingResult = envRec.CreateGlobalFunctionBinding(ctx, fn, fo, intrinsics.false);
+      const $CreateGlobalFunctionBindingResult = envRec.CreateGlobalFunctionBinding(ctx, fn, fo, intrinsics.false, f);
       if ($CreateGlobalFunctionBindingResult.isAbrupt) { return $CreateGlobalFunctionBindingResult.enrichWith(ctx, this); }
     }
 
     // 18. For each String vn in declaredVarNames, in list order, do
     for (const vn of declaredVarNames) {
       // 18. a. Perform ? envRec.CreateGlobalVarBinding(vn, false).
-      const $CreateGlobalVarBindingResult = envRec.CreateGlobalVarBinding(ctx, vn, intrinsics.false);
+      const $CreateGlobalVarBindingResult = envRec.CreateGlobalVarBinding(ctx, vn, intrinsics.false, vn.declaringNode);
       if ($CreateGlobalVarBindingResult.isAbrupt) { return $CreateGlobalVarBindingResult.enrichWith(ctx, this); }
     }
 
@@ -702,11 +738,25 @@ export class $ESScript implements I$Node {
 
 export type ModuleStatus = 'uninstantiated' | 'instantiating' | 'instantiated' | 'evaluating' | 'evaluated';
 
+export class ModuleRequest {
+  public resolvedModule: $ESModule | undefined = void 0;
+
+  public constructor(
+    public readonly declaration: $ImportDeclaration | $ExportDeclaration,
+    public readonly specifier: $String,
+  ) {}
+
+  public resolveWith(mod: $ESModule): this {
+    this.resolvedModule = mod;
+    return this;
+  }
+}
+
 // http://www.ecma-international.org/ecma-262/#sec-abstract-module-records
 // http://www.ecma-international.org/ecma-262/#sec-cyclic-module-records
 // http://www.ecma-international.org/ecma-262/#sec-source-text-module-records
 export class $ESModule implements I$Node, IModule {
-  public readonly '<IModule>': unknown;
+  public '<IModule>'!: unknown;
 
   public disposed: boolean = false;
 
@@ -720,53 +770,54 @@ export class $ESModule implements I$Node, IModule {
 
   public readonly path: string;
 
-  public readonly mos: $ESModule = this;
+  public mos: $ESModule = this;
   public readonly parent: $ESModule = this;
-  public readonly ctx: Context = Context.None;
-  public readonly depth: number = 0;
+  public depth: number = 0;
 
-  public readonly $statements: readonly $$TSModuleItem[];
+  public $statements!: readonly $$TSModuleItem[];
 
-  public readonly DirectivePrologue: DirectivePrologue;
+  public DirectivePrologue!: DirectivePrologue;
 
-  public ExecutionResult: $Any; // Temporary property for testing purposes
+  public ExecutionResult!: $Any; // Temporary property for testing purposes
 
   // http://www.ecma-international.org/ecma-262/#sec-module-semantics-static-semantics-exportedbindings
   // 15.2.1.5 Static Semantics: ExportedBindings
-  public readonly ExportedBindings: readonly $String[];
+  public ExportedBindings!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-module-semantics-static-semantics-exportednames
   // 15.2.1.6 Static Semantics: ExportedNames
-  public readonly ExportedNames: readonly $String[];
+  public ExportedNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-module-semantics-static-semantics-exportentries
   // 15.2.1.7 Static Semantics: ExportEntries
-  public readonly ExportEntries: readonly ExportEntryRecord[];
+  public ExportEntries!: readonly ExportEntryRecord[];
   // http://www.ecma-international.org/ecma-262/#sec-module-semantics-static-semantics-importentries
   // 15.2.1.8 Static Semantics: ImportEntries
-  public readonly ImportEntries: readonly ImportEntryRecord[];
+  public ImportEntries!: readonly ImportEntryRecord[];
   // http://www.ecma-international.org/ecma-262/#sec-importedlocalnames
   // 15.2.1.9 Static Semantics: ImportedLocalNames ( importEntries )
-  public readonly ImportedLocalNames: readonly $String[];
+  public ImportedLocalNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-module-semantics-static-semantics-modulerequests
   // 15.2.1.10 Static Semantics: ModuleRequests
-  public readonly ModuleRequests: readonly $String[];
+  public ModuleRequests!: readonly ModuleRequest[];
   // http://www.ecma-international.org/ecma-262/#sec-module-semantics-static-semantics-lexicallyscopeddeclarations
   // 15.2.1.12 Static Semantics: LexicallyScopedDeclarations
-  public readonly LexicallyScopedDeclarations: readonly $$ESDeclaration[];
+  public LexicallyScopedDeclarations!: readonly $$ESDeclaration[];
   // http://www.ecma-international.org/ecma-262/#sec-module-semantics-static-semantics-varscopeddeclarations
   // 15.2.1.14 Static Semantics: VarScopedDeclarations
-  public readonly VarScopedDeclarations: readonly $$ESVarDeclaration[];
+  public VarScopedDeclarations!: readonly $$ESVarDeclaration[];
 
-  public readonly TypeDeclarations: readonly $$TSDeclaration[] = emptyArray;
-  public readonly IsType: false = false;
+  public NamespaceDeclarations!: readonly $$TSNamespaceDeclaration[];
 
-  public Status: ModuleStatus;
-  public DFSIndex: number | undefined;
-  public DFSAncestorIndex: number | undefined;
-  public RequestedModules: $String[];
+  public TypeDeclarations: readonly $$TSDeclaration[] = emptyArray;
+  public IsType: false = false;
 
-  public readonly LocalExportEntries: readonly ExportEntryRecord[];
-  public readonly IndirectExportEntries: readonly ExportEntryRecord[];
-  public readonly StarExportEntries: readonly ExportEntryRecord[];
+  public Status!: ModuleStatus;
+  public DFSIndex!: number | undefined;
+  public DFSAncestorIndex!: number | undefined;
+  public RequestedModules!: ModuleRequest[];
+
+  public LocalExportEntries!: readonly ExportEntryRecord[];
+  public IndirectExportEntries!: readonly ExportEntryRecord[];
+  public StarExportEntries!: readonly ExportEntryRecord[];
 
   public get isNull(): false { return false; }
   public get isScript(): false { return false; }
@@ -774,76 +825,177 @@ export class $ESModule implements I$Node, IModule {
 
   public constructor(
     public readonly logger: ILogger,
-    public readonly $file: IFile,
+    public readonly $file: FileEntry,
     public readonly node: SourceFile,
     public readonly realm: Realm,
     public readonly pkg: NPMPackage | null,
-    public readonly moduleResolver: IModuleResolver,
     public readonly compilerOptions: $CompilerOptions,
+    public readonly ws: Workspace,
   ) {
-    const intrinsics = realm['[[Intrinsics]]'];
+    this.path = `ESModule<(...)${$file.path.slice(ws.lastCommonRootDir.length)}>`;
+  }
 
-    this.ExecutionResult = intrinsics.empty;
+  public static create(
+    logger: ILogger,
+    $file: FileEntry,
+    node: SourceFile,
+    realm: Realm,
+    pkg: NPMPackage | null,
+    compilerOptions: $CompilerOptions,
+    ws: Workspace,
+  ): $ESModule {
+    logger = logger.root;
+    const $node = new $ESModule(logger, $file, node, realm, pkg, compilerOptions, ws);
+    const path = $node.path;
 
-    this['[[Environment]]'] = intrinsics.undefined;
-    this['[[Namespace]]'] = intrinsics.undefined;
-
-    this.path = `ESModule<(...)${$file.rootlessPath}>`;
-    this.logger = logger.root;
-
-    let ctx = Context.None;
-    this.DirectivePrologue = GetDirectivePrologue(node.statements);
-    if (this.DirectivePrologue.ContainsUseStrict) {
-      ctx |= Context.InStrictMode;
-    }
-
-    const ExportedBindings = this.ExportedBindings = [] as $String[];
-    const ExportedNames = this.ExportedNames = [] as $String[];
-    const ExportEntries = this.ExportEntries = [] as ExportEntryRecord[];
-    const ImportEntries = this.ImportEntries = [] as ImportEntryRecord[];
-    const ImportedLocalNames = this.ImportedLocalNames = [] as $String[];
-    const ModuleRequests = this.ModuleRequests = [] as $String[];
-    const LexicallyScopedDeclarations = this.LexicallyScopedDeclarations = [] as $$ESDeclaration[];
-    const VarScopedDeclarations = this.VarScopedDeclarations = [] as $$ESVarDeclaration[];
-
-    const $statements = this.$statements = [] as $$TSModuleItem[];
+    const $statements = $node.$statements = [] as $$TSModuleItem[];
     const statements = node.statements as readonly $StatementNode[];
     let stmt: $StatementNode;
-    let $stmt: $$TSModuleItem;
     let s = 0;
     for (let i = 0, ii = statements.length; i < ii; ++i) {
       stmt = statements[i];
 
       switch (stmt.kind) {
         case SyntaxKind.ModuleDeclaration:
-          $stmt = $statements[s] = new $ModuleDeclaration(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $ModuleDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.NamespaceExportDeclaration:
-          $stmt = $statements[s] = new $NamespaceExportDeclaration(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $NamespaceExportDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ImportEqualsDeclaration:
-          $stmt = $statements[s] = new $ImportEqualsDeclaration(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $ImportEqualsDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
           break;
         case SyntaxKind.ImportDeclaration:
-          $stmt = $statements[s] = new $ImportDeclaration(stmt, this, ctx, s);
-          ++s;
+          ($statements[s] = $ImportDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ExportAssignment:
+          ($statements[s] = $ExportAssignment.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ExportDeclaration:
+          ($statements[s] = $ExportDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.VariableStatement:
+          ($statements[s] = $VariableStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.FunctionDeclaration:
+          // Skip overload signature
+          if (stmt.body === void 0) {
+            continue;
+          }
+          ($statements[s] = $FunctionDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ClassDeclaration:
+          ($statements[s] = $ClassDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.InterfaceDeclaration:
+          ($statements[s] = $InterfaceDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.TypeAliasDeclaration:
+          ($statements[s] = $TypeAliasDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.EnumDeclaration:
+          ($statements[s] = $EnumDeclaration.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.Block:
+          ($statements[s] = $Block.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.EmptyStatement:
+          ($statements[s] = $EmptyStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ExpressionStatement:
+          ($statements[s] = $ExpressionStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.IfStatement:
+          ($statements[s] = $IfStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.DoStatement:
+          ($statements[s] = $DoStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.WhileStatement:
+          ($statements[s] = $WhileStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ForStatement:
+          ($statements[s] = $ForStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ForInStatement:
+          ($statements[s] = $ForInStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ForOfStatement:
+          ($statements[s] = $ForOfStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ContinueStatement:
+          ($statements[s] = $ContinueStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.BreakStatement:
+          ($statements[s] = $BreakStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ReturnStatement:
+          ($statements[s] = $ReturnStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.WithStatement:
+          ($statements[s] = $WithStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.SwitchStatement:
+          ($statements[s] = $SwitchStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.LabeledStatement:
+          ($statements[s] = $LabeledStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.ThrowStatement:
+          ($statements[s] = $ThrowStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.TryStatement:
+          ($statements[s] = $TryStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        case SyntaxKind.DebuggerStatement:
+          ($statements[s] = $DebuggerStatement.create(stmt, s++, 1, $node, realm, logger, path)).parent = $node;
+          break;
+        default:
+          throw new Error(`Unexpected syntax node: ${SyntaxKind[(stmt as Node).kind]}.`);
+      }
+    }
 
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    const intrinsics = this.realm['[[Intrinsics]]'];
+
+    this.ExecutionResult = intrinsics.empty;
+
+    this['[[Environment]]'] = intrinsics.undefined;
+    this['[[Namespace]]'] = intrinsics.undefined;
+
+    if ((this.DirectivePrologue = GetDirectivePrologue(this.node.statements)).ContainsUseStrict) {
+      ctx |= HydrateContext.ContainsUseStrict;
+    }
+
+    this.$statements.forEach(x => x.hydrate(ctx));
+
+    const ExportedBindings = this.ExportedBindings = [] as $String[];
+    const ExportedNames = this.ExportedNames = [] as $String[];
+    const ExportEntries = this.ExportEntries = [] as ExportEntryRecord[];
+    const ImportEntries = this.ImportEntries = [] as ImportEntryRecord[];
+    const ImportedLocalNames = this.ImportedLocalNames = [] as $String[];
+    const ModuleRequests = this.ModuleRequests = [] as ModuleRequest[];
+    const LexicallyScopedDeclarations = this.LexicallyScopedDeclarations = [] as $$ESDeclaration[];
+    const VarScopedDeclarations = this.VarScopedDeclarations = [] as $$ESVarDeclaration[];
+    const NamespaceDeclarations = this.NamespaceDeclarations = [] as $$TSNamespaceDeclaration[];
+
+    const $statements = this.$statements;
+    let $stmt: $$TSModuleItem;
+    for (let i = 0, ii = $statements.length; i < ii; ++i) {
+      $stmt = $statements[i];
+
+      switch ($stmt.$kind) {
+        case SyntaxKind.ImportDeclaration:
           ImportEntries.push(...$stmt.ImportEntries);
           ImportedLocalNames.push(...$stmt.ImportEntries.map(getLocalName));
 
           ModuleRequests.push(...$stmt.ModuleRequests);
           break;
-        case SyntaxKind.ExportAssignment:
-          $stmt = $statements[s] = new $ExportAssignment(stmt, this, ctx, s);
-          ++s;
-          break;
         case SyntaxKind.ExportDeclaration:
-          $stmt = $statements[s] = new $ExportDeclaration(stmt, this, ctx, s);
-          ++s;
-
           ExportedBindings.push(...$stmt.ExportedBindings);
           ExportedNames.push(...$stmt.ExportedNames);
           ExportEntries.push(...$stmt.ExportEntries);
@@ -853,13 +1005,10 @@ export class $ESModule implements I$Node, IModule {
           LexicallyScopedDeclarations.push(...$stmt.LexicallyScopedDeclarations);
           break;
         case SyntaxKind.VariableStatement:
-          $stmt = $statements[s] = new $VariableStatement(stmt, this, ctx, s);
-          ++s;
-
           if ($stmt.isLexical) {
-            LexicallyScopedDeclarations.push($stmt);
+            LexicallyScopedDeclarations.push(...$stmt.$declarationList.$declarations);
           } else {
-            VarScopedDeclarations.push($stmt);
+            VarScopedDeclarations.push(...$stmt.$declarationList.$declarations);
           }
 
           if (hasBit($stmt.modifierFlags, ModifierFlags.Export)) {
@@ -870,25 +1019,7 @@ export class $ESModule implements I$Node, IModule {
 
           break;
         case SyntaxKind.FunctionDeclaration:
-          // Skip overload signature
-          if (stmt.body === void 0) {
-            continue;
-          }
-          $stmt = $statements[s] = new $FunctionDeclaration(stmt, this, ctx, s);
-          ++s;
-
-          if (hasBit($stmt.modifierFlags, ModifierFlags.Export)) {
-            ExportedBindings.push(...$stmt.ExportedBindings);
-            ExportedNames.push(...$stmt.ExportedNames);
-            ExportEntries.push(...$stmt.ExportEntries);
-          }
-
-          LexicallyScopedDeclarations.push($stmt);
-          break;
         case SyntaxKind.ClassDeclaration:
-          $stmt = $statements[s] = new $ClassDeclaration(stmt, this, ctx, s);
-          ++s;
-
           if (hasBit($stmt.modifierFlags, ModifierFlags.Export)) {
             ExportedBindings.push(...$stmt.ExportedBindings);
             ExportedNames.push(...$stmt.ExportedNames);
@@ -898,19 +1029,7 @@ export class $ESModule implements I$Node, IModule {
           LexicallyScopedDeclarations.push($stmt);
           break;
         case SyntaxKind.InterfaceDeclaration:
-          $stmt = $statements[s] = new $InterfaceDeclaration(stmt, this, ctx, s);
-          ++s;
-
-          if (hasBit($stmt.modifierFlags, ModifierFlags.Export)) {
-            ExportedBindings.push(...$stmt.ExportedBindings);
-            ExportedNames.push(...$stmt.ExportedNames);
-            ExportEntries.push(...$stmt.ExportEntries);
-          }
-          break;
         case SyntaxKind.TypeAliasDeclaration:
-          $stmt = $statements[s] = new $TypeAliasDeclaration(stmt, this, ctx, s);
-          ++s;
-
           if (hasBit($stmt.modifierFlags, ModifierFlags.Export)) {
             ExportedBindings.push(...$stmt.ExportedBindings);
             ExportedNames.push(...$stmt.ExportedNames);
@@ -918,111 +1037,28 @@ export class $ESModule implements I$Node, IModule {
           }
           break;
         case SyntaxKind.EnumDeclaration:
-          $stmt = $statements[s] = new $EnumDeclaration(stmt, this, ctx, s);
-          ++s;
-
+        case SyntaxKind.ModuleDeclaration:
           if (hasBit($stmt.modifierFlags, ModifierFlags.Export)) {
             ExportedBindings.push(...$stmt.ExportedBindings);
             ExportedNames.push(...$stmt.ExportedNames);
             ExportEntries.push(...$stmt.ExportEntries);
           }
+
+          NamespaceDeclarations.push($stmt);
           break;
         case SyntaxKind.Block:
-          $stmt = $statements[s] = new $Block(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
-        case SyntaxKind.EmptyStatement:
-          $stmt = $statements[s] = new $EmptyStatement(stmt, this, ctx, s);
-          ++s;
-          break;
-        case SyntaxKind.ExpressionStatement:
-          $stmt = $statements[s] = new $ExpressionStatement(stmt, this, ctx, s);
-          ++s;
-          break;
         case SyntaxKind.IfStatement:
-          $stmt = $statements[s] = new $IfStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
         case SyntaxKind.DoStatement:
-          $stmt = $statements[s] = new $DoStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
         case SyntaxKind.WhileStatement:
-          $stmt = $statements[s] = new $WhileStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
         case SyntaxKind.ForStatement:
-          $stmt = $statements[s] = new $ForStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
         case SyntaxKind.ForInStatement:
-          $stmt = $statements[s] = new $ForInStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
         case SyntaxKind.ForOfStatement:
-          $stmt = $statements[s] = new $ForOfStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
-        case SyntaxKind.ContinueStatement:
-          $stmt = $statements[s] = new $ContinueStatement(stmt, this, ctx, s);
-          ++s;
-          break;
-        case SyntaxKind.BreakStatement:
-          $stmt = $statements[s] = new $BreakStatement(stmt, this, ctx, s);
-          ++s;
-          break;
-        case SyntaxKind.ReturnStatement:
-          $stmt = $statements[s] = new $ReturnStatement(stmt, this, ctx, s);
-          ++s;
-          break;
         case SyntaxKind.WithStatement:
-          $stmt = $statements[s] = new $WithStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
         case SyntaxKind.SwitchStatement:
-          $stmt = $statements[s] = new $SwitchStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
         case SyntaxKind.LabeledStatement:
-          $stmt = $statements[s] = new $LabeledStatement(stmt, this, ctx, s);
-          ++s;
-
-          VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
-          break;
-        case SyntaxKind.ThrowStatement:
-          $stmt = $statements[s] = new $ThrowStatement(stmt, this, ctx, s);
-          ++s;
-          break;
         case SyntaxKind.TryStatement:
-          $stmt = $statements[s] = new $TryStatement(stmt, this, ctx, s);
-          ++s;
-
           VarScopedDeclarations.push(...$stmt.VarScopedDeclarations);
           break;
-        case SyntaxKind.DebuggerStatement:
-          $stmt = $statements[s] = new $DebuggerStatement(stmt, this, ctx, s);
-          ++s;
-          break;
-        default:
-          throw new Error(`Unexpected syntax node: ${SyntaxKind[(node as Node).kind]}.`);
       }
     }
 
@@ -1118,13 +1154,79 @@ export class $ESModule implements I$Node, IModule {
     this.logger.trace(`IndirectExportEntries: `, indirectExportEntries);
     this.logger.trace(`LocalExportEntries: `, localExportEntries);
     this.logger.trace(`StarExportEntries: `, starExportEntries);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] | undefined {
+    const transformedStatements = transformList(tctx, this.$statements, this.node.statements as readonly $$TSModuleItem['node'][]);
+
+    if (transformedStatements === void 0) {
+      return this.node;
+    }
+
+    if (transformedStatements.length === 0) {
+      return void 0;
+    }
+
+    return {
+      ...this.node,
+      statements: createNodeArray(transformedStatements) as NodeArray<Statement>,
+    };
+  }
+
+  public getDeclaringNode(
+    N: $String,
+    resolveSet: ResolveSet = new ResolveSet(),
+  ): $$ValueDeclaration | null {
+    switch (this.Status) {
+      case 'uninstantiated':
+      case 'instantiating':
+        throw new Error(`Module "${this.$file.path}" needs to be instantiated before valueDeclaration can be retrieved. Module is still ${this.Status}`);
+      case 'instantiated':
+      case 'evaluating':
+      case 'evaluated': {
+        if (this['[[Environment]]'].isUndefined) {
+          throw new Error(`Module "${this.$file.path}" has no environment record`);
+        }
+        const binding = this['[[Environment]]'].getBinding(N);
+        if (binding === void 0) {
+          // The export could be resolved but there is no binding, so it's probably a type alias or interface
+          if (resolveSet.has(this, N)) {
+            return null;
+          }
+          const resolved = this.ResolveExport(this.realm.stack.top, N, resolveSet);
+          if (!(resolved instanceof ResolvedBindingRecord || resolved instanceof $Null)) {
+            const chain: string[] = [];
+            resolveSet.forEach(mod => {
+              chain.push(`  "${(mod as $ESModule).$file.path}"`);
+            });
+            if (resolved instanceof Promise) {
+              throw new Error(`Module "${this.$file.path}" for some reason returned a promise when resolving the binding named ${N['[[Value]]']}. Module chain searched:\n${chain.join('\n')}`);
+            }
+            if (resolved.isAbrupt) {
+              throw new Error(`Module "${this.$file.path}" threw an error (${resolved['[[Value]]'].message}) when resolving the binding named ${N['[[Value]]']}. Module chain searched:\n${chain.join('\n')}`);
+            }
+            if (resolved.isAmbiguous) {
+              throw new Error(`Module "${this.$file.path}" has an ambiguous export for the binding named ${N['[[Value]]']}. Module chain searched:\n${chain.join('\n')}`);
+            }
+          }
+          if (resolved.isNull) {
+            return null;
+          }
+          resolveSet.add(this, N);
+          return (resolved.Module as $ESModule).getDeclaringNode(N, resolveSet);
+        }
+        return binding.declaringNode;
+      }
+    }
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-moduledeclarationinstantiation
   // 15.2.1.16.1 Instantiate ( ) Concrete Method
-  public Instantiate(
+  public async Instantiate(
     ctx: ExecutionContext,
-  ): $Undefined | $Error {
+  ): Promise<$Undefined | $Error> {
     const realm = ctx.Realm;
     const intrinsics = realm['[[Intrinsics]]'];
 
@@ -1142,7 +1244,7 @@ export class $ESModule implements I$Node, IModule {
     const stack = [] as $ESModule[];
 
     // 4. Let result be InnerModuleInstantiation(module, stack, 0).
-    const result = this._InnerModuleInstantiation(ctx, stack, new $Number(realm, 0));
+    const result = await this._InnerModuleInstantiation(ctx, stack, new $Number(realm, 0));
 
     // 5. If result is an abrupt completion, then
     if (result.isAbrupt) {
@@ -1180,11 +1282,11 @@ export class $ESModule implements I$Node, IModule {
   // http://www.ecma-international.org/ecma-262/#sec-innermoduleinstantiation
   // 15.2.1.16.1.1 InnerModuleInstantiation ( module , stack , idx )
   /** @internal */
-  public _InnerModuleInstantiation(
+  public async _InnerModuleInstantiation(
     ctx: ExecutionContext,
     stack: $ESModule[],
     idx: $Number,
-  ): $Number | $Error {
+  ): Promise<$Number | $Error> {
     ctx.checkTimeout();
 
     this.logger.debug(`${this.path}._InnerModuleInstantiation(#${ctx.id})`);
@@ -1223,11 +1325,12 @@ export class $ESModule implements I$Node, IModule {
     // 9. For each String required that is an element of module.[[RequestedModules]], do
     for (const required of this.RequestedModules) {
       // 9. a. Let requiredModule be ? HostResolveImportedModule(module, required).
-      const requiredModule = this.moduleResolver.ResolveImportedModule(ctx, this, required);
+      const requiredModule = await this.ws.ResolveImportedModule(realm, this, required.specifier);
       if (requiredModule.isAbrupt) { return requiredModule.enrichWith(ctx, this); }
+      required.resolvedModule = requiredModule as $ESModule;
 
       // 9. b. Set idx to ? InnerModuleInstantiation(requiredModule, stack, idx).
-      const $idx = requiredModule._InnerModuleInstantiation(ctx, stack, idx);
+      const $idx = await requiredModule._InnerModuleInstantiation(ctx, stack, idx);
       if ($idx.isAbrupt) { return $idx.enrichWith(ctx, this); }
       idx = $idx;
 
@@ -1236,7 +1339,7 @@ export class $ESModule implements I$Node, IModule {
       // 9. e. If requiredModule.[[Status]] is "instantiating", then
       if (requiredModule instanceof $ESModule && requiredModule.Status === 'instantiating') {
         // 9. e. i. Assert: requiredModule is a Cyclic Module Record.
-        this.logger.warn(`[_InnerModuleInstantiation] ${requiredModule.$file.name} is a cyclic module record`);
+        this.logger.debug(`[_InnerModuleInstantiation] ${requiredModule.$file.name} is a cyclic module record`);
 
         // 9. e. ii. Set module.[[DFSAncestorIndex]] to min(module.[[DFSAncestorIndex]], requiredModule.[[DFSAncestorIndex]]).
         this.DFSAncestorIndex = Math.min(this.DFSAncestorIndex, requiredModule.DFSAncestorIndex!);
@@ -1244,7 +1347,7 @@ export class $ESModule implements I$Node, IModule {
     }
 
     // 10. Perform ? module.InitializeEnvironment().
-    const $InitializeEnvironmentResult = this.InitializeEnvironment(ctx);
+    const $InitializeEnvironmentResult = await this.InitializeEnvironment(ctx);
     if ($InitializeEnvironmentResult.isAbrupt) { return $InitializeEnvironmentResult.enrichWith(ctx, this); }
 
     // 11. Assert: module occurs exactly once in stack.
@@ -1275,9 +1378,9 @@ export class $ESModule implements I$Node, IModule {
 
   // http://www.ecma-international.org/ecma-262/#sec-source-text-module-record-initialize-environment
   // 15.2.1.17.4 InitializeEnvironment ( ) Concrete Method
-  public InitializeEnvironment(
+  public async InitializeEnvironment(
     ctx: ExecutionContext,
-  ): $Any {
+  ): Promise<$Any> {
     ctx.checkTimeout();
 
     this.logger.debug(`${this.path}.InitializeEnvironment(#${ctx.id})`);
@@ -1289,7 +1392,7 @@ export class $ESModule implements I$Node, IModule {
     // 2. For each ExportEntry Record e in module.[[IndirectExportEntries]], do
     for (const e of this.IndirectExportEntries) {
       // 2. a. Let resolution be ? module.ResolveExport(e.[[ExportName]], « »).
-      const resolution = this.ResolveExport(ctx, e.ExportName as $String, new ResolveSet());
+      const resolution = await this.ResolveExport(ctx, e.ExportName as $String, new ResolveSet());
       if (resolution.isAbrupt) { return resolution.enrichWith(ctx, this); }
 
       // 2. b. If resolution is null or "ambiguous", throw a SyntaxError exception.
@@ -1314,13 +1417,13 @@ export class $ESModule implements I$Node, IModule {
     // 9. For each ImportEntry Record in in module.[[ImportEntries]], do
     for (const ie of this.ImportEntries) {
       // 9. a. Let importedModule be ! HostResolveImportedModule(module, in.[[ModuleRequest]]).
-      const importedModule = this.moduleResolver.ResolveImportedModule(ctx, this, ie.ModuleRequest) as IModule;
+      const importedModule = await this.ws.ResolveImportedModule(realm, this, ie.ModuleRequest) as IModule;
 
       // 9. b. NOTE: The above call cannot fail because imported module requests are a subset of module.[[RequestedModules]], and these have been resolved earlier in this algorithm.
       // 9. c. If in.[[ImportName]] is "*", then
       if (ie.ImportName['[[Value]]'] === '*') {
         // 9. c. i. Let namespace be ? GetModuleNamespace(importedModule).
-        const namespace = (function (mod) {
+        const namespace = await (async function (mod) {
           // http://www.ecma-international.org/ecma-262/#sec-getmodulenamespace
           // 15.2.1.19 Runtime Semantics: GetModuleNamespace ( module )
 
@@ -1332,7 +1435,7 @@ export class $ESModule implements I$Node, IModule {
           // 4. If namespace is undefined, then
           if (namespace.isUndefined) {
             // 4. a. Let exportedNames be ? module.GetExportedNames(« »).
-            const exportedNames = mod.GetExportedNames(ctx, new Set());
+            const exportedNames = await mod.GetExportedNames(ctx, new Set());
             if (exportedNames.isAbrupt) { return exportedNames.enrichWith(ctx, mod as unknown as I$Node); }
 
             // 4. b. Let unambiguousNames be a new empty List.
@@ -1341,7 +1444,7 @@ export class $ESModule implements I$Node, IModule {
             // 4. c. For each name that is an element of exportedNames, do
             for (const name of exportedNames) {
               // 4. c. i. Let resolution be ? module.ResolveExport(name, « »).
-              const resolution = mod.ResolveExport(ctx, name, new ResolveSet());
+              const resolution = await mod.ResolveExport(ctx, name, new ResolveSet());
               if (resolution.isAbrupt) { return resolution.enrichWith(ctx, mod as unknown as I$Node); }
 
               // 4. c. ii. If resolution is a ResolvedBinding Record, append name to unambiguousNames.
@@ -1358,17 +1461,18 @@ export class $ESModule implements I$Node, IModule {
           return namespace;
         })(importedModule);
 
+        if (namespace.isAbrupt) { return namespace.enrichWith(ctx, this); } // TODO: sure about this? Spec doesn't say it
+
         // 9. c. ii. Perform ! envRec.CreateImmutableBinding(in.[[LocalName]], true).
-        envRec.CreateImmutableBinding(ctx, ie.LocalName, intrinsics.true);
+        envRec.CreateImmutableBinding(ctx, ie.LocalName, intrinsics.true, ie.source as $NamespaceImport);
 
         // 9. c. iii. Call envRec.InitializeBinding(in.[[LocalName]], namespace).
-        if (namespace.isAbrupt) { return namespace.enrichWith(ctx, this); } // TODO: sure about this? Spec doesn't say it
         envRec.InitializeBinding(ctx, ie.LocalName, namespace);
       }
       // 9. d. Else,
       else {
         // 9. d. i. Let resolution be ? importedModule.ResolveExport(in.[[ImportName]], « »).
-        const resolution = importedModule.ResolveExport(ctx, ie.ImportName, new ResolveSet());
+        const resolution = await importedModule.ResolveExport(ctx, ie.ImportName, new ResolveSet());
         if (resolution.isAbrupt) { return resolution.enrichWith(ctx, this); }
 
         // 9. d. ii. If resolution is null or "ambiguous", throw a SyntaxError exception.
@@ -1376,8 +1480,10 @@ export class $ESModule implements I$Node, IModule {
           return new $SyntaxError(realm, `ResolveExport(${ie.ImportName}) returned ${resolution}`);
         }
 
+        const source = resolution.ExportEntry.source;
+
         // 9. d. iii. Call envRec.CreateImportBinding(in.[[LocalName]], resolution.[[Module]], resolution.[[BindingName]]).
-        envRec.CreateImportBinding(ctx, ie.LocalName, resolution.Module, resolution.BindingName);
+        envRec.CreateImportBinding(ctx, ie.LocalName, resolution.Module, resolution.BindingName, isValueDeclaration(source) ? source : null);
       }
     }
 
@@ -1395,7 +1501,7 @@ export class $ESModule implements I$Node, IModule {
         // 13. a. i. If dn is not an element of declaredVarNames, then
         if (!declaredVarNames.$contains(dn)) {
           // 13. a. i. 1. Perform ! envRec.CreateMutableBinding(dn, false).
-          envRec.CreateMutableBinding(ctx, dn, intrinsics.false);
+          envRec.CreateMutableBinding(ctx, dn, intrinsics.false, d);
 
           // 13. a. i. 2. Call envRec.InitializeBinding(dn, undefined).
           envRec.InitializeBinding(ctx, dn, intrinsics.undefined);
@@ -1416,12 +1522,12 @@ export class $ESModule implements I$Node, IModule {
         // 15. a. i. If IsConstantDeclaration of d is true, then
         if (d.IsConstantDeclaration) {
           // 15. a. i. 1. Perform ! envRec.CreateImmutableBinding(dn, true).
-          envRec.CreateImmutableBinding(ctx, dn, intrinsics.true);
+          envRec.CreateImmutableBinding(ctx, dn, intrinsics.true, d);
         }
         // 15. a. ii. Else,
         else {
           // 15. a. ii. 1. Perform ! envRec.CreateMutableBinding(dn, false).
-          envRec.CreateMutableBinding(ctx, dn, intrinsics.false);
+          envRec.CreateMutableBinding(ctx, dn, intrinsics.false, d);
 
           // 15. a. iii. If d is a FunctionDeclaration, a GeneratorDeclaration, an AsyncFunctionDeclaration, or an AsyncGeneratorDeclaration, then
           if (d.$kind === SyntaxKind.FunctionDeclaration) {
@@ -1436,16 +1542,24 @@ export class $ESModule implements I$Node, IModule {
       }
     }
 
+    // custom TS stuff (experimental)
+    const namespaces = this.NamespaceDeclarations;
+    for (const d of namespaces) {
+      for (const dn of d.BoundNames) {
+        envRec.CreateImmutableBinding(ctx, dn, intrinsics.true, d);
+      }
+    }
+
     // 16. Return NormalCompletion(empty).
     return new $Empty(realm);
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-getexportednames
   // 15.2.1.17.2 GetExportedNames ( exportStarSet ) Concrete Method
-  public GetExportedNames(
+  public async GetExportedNames(
     ctx: ExecutionContext,
     exportStarSet: Set<IModule>,
-  ): $List<$String> | $Error {
+  ): Promise<$List<$String> | $Error> {
     ctx.checkTimeout();
 
     const realm = ctx.Realm;
@@ -1484,11 +1598,11 @@ export class $ESModule implements I$Node, IModule {
     // 7. For each ExportEntry Record e in module.[[StarExportEntries]], do
     for (const e of mod.StarExportEntries) {
       // 7. a. Let requestedModule be ? HostResolveImportedModule(module, e.[[ModuleRequest]]).
-      const requestedModule = this.moduleResolver.ResolveImportedModule(ctx, mod, e.ModuleRequest as $String);
+      const requestedModule = await this.ws.ResolveImportedModule(realm, mod, e.ModuleRequest as $String);
       if (requestedModule.isAbrupt) { return requestedModule.enrichWith(ctx, this); }
 
       // 7. b. Let starNames be ? requestedModule.GetExportedNames(exportStarSet).
-      const starNames = requestedModule.GetExportedNames(ctx, exportStarSet);
+      const starNames = await requestedModule.GetExportedNames(ctx, exportStarSet);
       if (starNames.isAbrupt) { return starNames.enrichWith(ctx, this); }
 
       // 7. c. For each element n of starNames, do
@@ -1508,122 +1622,193 @@ export class $ESModule implements I$Node, IModule {
     return exportedNames;
   }
 
+  private readonly resolutionCache: Map<string, ResolvedBindingRecord | $Null | $String<'ambiguous'> | $Error> = new Map();
+
   // http://www.ecma-international.org/ecma-262/#sec-resolveexport
   // 15.2.1.17.3 ResolveExport ( exportName , resolveSet ) Concrete Method
   public ResolveExport(
     ctx: ExecutionContext,
     exportName: $String,
     resolveSet: ResolveSet,
-  ): ResolvedBindingRecord | $Null | $String<'ambiguous'> | $Error {
+  ): MaybePromise<ResolvedBindingRecord | $Null | $String<'ambiguous'> | $Error> {
     ctx.checkTimeout();
 
-    const realm = ctx.Realm;
-    const intrinsics = realm['[[Intrinsics]]'];
+    const cache = this.resolutionCache;
+    let $resolution = cache.get(exportName['[[Value]]']);
+    if ($resolution === void 0) {
+      this.logger.trace(`ResolveExport(#${ctx.id},exportName=${exportName}) cache miss at ${this.$file.path}`);
+      const realm = ctx.Realm;
 
-    // 1. Let module be this Source Text Module Record.
-    // 2. For each Record { [[Module]], [[ExportName]] } r in resolveSet, do
-    // 2. a. If module and r.[[Module]] are the same Module Record and SameValue(exportName, r.[[ExportName]]) is true, then
-    if (resolveSet.has(this, exportName)) {
-      // 2. a. i. Assert: This is a circular import request.
-      // 2. a. ii. Return null.
-      this.logger.warn(`[ResolveExport] Circular import: ${exportName}`);
-      return new $Null(realm);
-    }
-
-    // 3. Append the Record { [[Module]]: module, [[ExportName]]: exportName } to resolveSet.
-    resolveSet.add(this, exportName);
-
-    // 4. For each ExportEntry Record e in module.[[LocalExportEntries]], do
-    for (const e of this.LocalExportEntries) {
-      // 4. a. If SameValue(exportName, e.[[ExportName]]) is true, then
-      if (exportName.is(e.ExportName)) {
-        // 4. a. i. Assert: module provides the direct binding for this export.
-        this.logger.debug(`${this.path}.[ResolveExport] found direct binding for ${exportName['[[Value]]']}`);
-
-        // 4. a. ii. Return ResolvedBinding Record { [[Module]]: module, [[BindingName]]: e.[[LocalName]] }.
-        return new ResolvedBindingRecord(this, e.LocalName as $String);
-      }
-    }
-
-    // 5. For each ExportEntry Record e in module.[[IndirectExportEntries]], do
-    for (const e of this.IndirectExportEntries) {
-      // 5. a. If SameValue(exportName, e.[[ExportName]]) is true, then
-      if (exportName.is(e.ExportName)) {
-        // 5. a. i. Assert: module imports a specific binding for this export.
-        this.logger.debug(`${this.path}.[ResolveExport] found specific imported binding for ${exportName['[[Value]]']}`);
-
-        // 5. a. ii. Let importedModule be ? HostResolveImportedModule(module, e.[[ModuleRequest]]).
-        const importedModule = this.moduleResolver.ResolveImportedModule(ctx, this, e.ModuleRequest as $String);
-        if (importedModule.isAbrupt) { return importedModule.enrichWith(ctx, this); }
-
-        // 5. a. iii. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
-        return importedModule.ResolveExport(ctx, e.ImportName as $String, resolveSet);
-      }
-    }
-
-    // 6. If SameValue(exportName, "default") is true, then
-    if (exportName['[[Value]]'] === 'default') {
-      // 6. a. Assert: A default export was not explicitly defined by this module.
-      // 6. b. Return null.
-      this.logger.warn(`[ResolveExport] No default export defined`);
-
-      return new $Null(realm);
-      // 6. c. NOTE: A default export cannot be provided by an export *.
-    }
-
-    // 7. Let starResolution be null.
-    let starResolution: ResolvedBindingRecord | $Null = new $Null(realm);
-
-    // 8. For each ExportEntry Record e in module.[[StarExportEntries]], do
-    for (const e of this.StarExportEntries) {
-      // 8. a. Let importedModule be ? HostResolveImportedModule(module, e.[[ModuleRequest]]).
-      const importedModule = this.moduleResolver.ResolveImportedModule(ctx, this, e.ModuleRequest as $String);
-      if (importedModule.isAbrupt) { return importedModule.enrichWith(ctx, this); }
-
-      // 8. b. Let resolution be ? importedModule.ResolveExport(exportName, resolveSet).
-      const resolution = importedModule.ResolveExport(ctx, exportName, resolveSet);
-      if (resolution.isAbrupt) { return resolution.enrichWith(ctx, this); }
-
-      // 8. c. If resolution is "ambiguous", return "ambiguous".
-      if (resolution.isAmbiguous) {
-        this.logger.warn(`[ResolveExport] ambiguous resolution for ${exportName['[[Value]]']}`);
-
-        return resolution;
+      // 1. Let module be this Source Text Module Record.
+      // 2. For each Record { [[Module]], [[ExportName]] } r in resolveSet, do
+      // 2. a. If module and r.[[Module]] are the same Module Record and SameValue(exportName, r.[[ExportName]]) is true, then
+      if (resolveSet.has(this, exportName)) {
+        // 2. a. i. Assert: This is a circular import request.
+        // 2. a. ii. Return null.
+        this.logger.warn(`[ResolveExport] Circular import: ${exportName}`);
+        cache.set(exportName['[[Value]]'], $resolution = new $Null(realm));
+        return $resolution;
       }
 
-      // 8. d. If resolution is not null, then
-      if (!resolution.isNull) {
-        // 8. d. i. Assert: resolution is a ResolvedBinding Record.
-        // 8. d. ii. If starResolution is null, set starResolution to resolution.
-        if (starResolution.isNull) {
-          starResolution = resolution;
+      // 3. Append the Record { [[Module]]: module, [[ExportName]]: exportName } to resolveSet.
+      resolveSet.add(this, exportName);
+
+      // 4. For each ExportEntry Record e in module.[[LocalExportEntries]], do
+      for (const e of this.LocalExportEntries) {
+        // 4. a. If SameValue(exportName, e.[[ExportName]]) is true, then
+        if (exportName.is(e.ExportName)) {
+          // 4. a. i. Assert: module provides the direct binding for this export.
+          this.logger.debug(`${this.path}.[ResolveExport] found direct binding for ${exportName['[[Value]]']}`);
+
+          // 4. a. ii. Return ResolvedBinding Record { [[Module]]: module, [[BindingName]]: e.[[LocalName]] }.
+          cache.set(exportName['[[Value]]'], $resolution = new ResolvedBindingRecord(this, e));
+          return $resolution;
         }
-        // 8. d. iii. Else,
-        else {
-          // 8. d. iii. 1. Assert: There is more than one * import that includes the requested name.
-          // 8. d. iii. 2. If resolution.[[Module]] and starResolution.[[Module]] are not the same Module Record or SameValue(resolution.[[BindingName]], starResolution.[[BindingName]]) is false, return "ambiguous".
-          if (!(resolution.Module === starResolution.Module && resolution.BindingName.is(starResolution.BindingName))) {
-            this.logger.warn(`[ResolveExport] ambiguous resolution for ${exportName['[[Value]]']}`);
+      }
 
-            return new $String(realm, 'ambiguous');
+      // 5. For each ExportEntry Record e in module.[[IndirectExportEntries]], do
+      for (const e of this.IndirectExportEntries) {
+        // 5. a. If SameValue(exportName, e.[[ExportName]]) is true, then
+        if (exportName.is(e.ExportName)) {
+          // 5. a. i. Assert: module imports a specific binding for this export.
+          this.logger.debug(`${this.path}.[ResolveExport] found specific imported binding for ${exportName['[[Value]]']}`);
+
+          // 5. a. ii. Let importedModule be ? HostResolveImportedModule(module, e.[[ModuleRequest]]).
+          const $importedModule = this.ws.ResolveImportedModule(realm, this, e.ModuleRequest as $String);
+
+          return awaitIfPromise(
+            $importedModule,
+            trueThunk,
+            importedModule => {
+              if (importedModule.isAbrupt) { return importedModule.enrichWith(ctx, this); }
+
+              // 5. a. iii. Return importedModule.ResolveExport(e.[[ImportName]], resolveSet).
+              return awaitIfPromise(
+                importedModule.ResolveExport(ctx, e.ImportName as $String, resolveSet),
+                trueThunk,
+                resolvedExport => {
+                  cache.set(exportName['[[Value]]'], $resolution = resolvedExport);
+                  return $resolution;
+                },
+              );
+            },
+          );
+        }
+      }
+
+      // 6. If SameValue(exportName, "default") is true, then
+      if (exportName['[[Value]]'] === 'default') {
+        // 6. a. Assert: A default export was not explicitly defined by this module.
+        // 6. b. Return null.
+        this.logger.warn(`[ResolveExport] No default export defined`);
+
+        cache.set(exportName['[[Value]]'], $resolution = new $Null(realm));
+        return $resolution;
+        // 6. c. NOTE: A default export cannot be provided by an export *.
+      }
+
+      // 7. Let starResolution be null.
+      let starResolution: ResolvedBindingRecord | $Null = new $Null(realm);
+
+      let intermediate: MaybePromise<$String<'ambiguous'> | $Error> | undefined = void 0;
+      // 8. For each ExportEntry Record e in module.[[StarExportEntries]], do
+      for (const e of this.StarExportEntries) {
+        this.logger.debug(`Trying star export of "${e.ModuleRequest['[[Value]]']}"`);
+
+        intermediate = awaitIfPromise(
+          intermediate as unknown as MaybePromise<$String<'ambiguous'> | $Error>,
+          value => value === void 0,
+          () => {
+            return awaitIfPromise(
+              // 8. a. Let importedModule be ? HostResolveImportedModule(module, e.[[ModuleRequest]]).
+              this.ws.ResolveImportedModule(realm, this, e.ModuleRequest as $String),
+              trueThunk,
+              importedModule => {
+                if (importedModule.isAbrupt) { return importedModule.enrichWith(ctx, this); }
+                return awaitIfPromise(
+                  // 8. b. Let resolution be ? importedModule.ResolveExport(exportName, resolveSet).
+                  importedModule.ResolveExport(ctx, exportName, resolveSet),
+                  trueThunk,
+                  resolution => {
+                    if (resolution.isAbrupt) { return resolution.enrichWith(ctx, this); }
+
+                    // 8. c. If resolution is "ambiguous", return "ambiguous".
+                    if (resolution.isAmbiguous) {
+                      this.logger.warn(`[ResolveExport] ambiguous resolution for ${exportName['[[Value]]']}`);
+
+                      cache.set(exportName['[[Value]]'], $resolution = resolution);
+                      return $resolution;
+                    }
+
+                    // 8. d. If resolution is not null, then
+                    if (!resolution.isNull) {
+                      // 8. d. i. Assert: resolution is a ResolvedBinding Record.
+                      // 8. d. ii. If starResolution is null, set starResolution to resolution.
+                      if (starResolution.isNull) {
+                        starResolution = resolution;
+                      }
+                      // 8. d. iii. Else,
+                      else {
+                        // 8. d. iii. 1. Assert: There is more than one * import that includes the requested name.
+                        // 8. d. iii. 2. If resolution.[[Module]] and starResolution.[[Module]] are not the same Module Record or SameValue(resolution.[[BindingName]], starResolution.[[BindingName]]) is false, return "ambiguous".
+                        if (!(resolution.Module === starResolution.Module && resolution.BindingName.is(starResolution.BindingName))) {
+                          this.logger.warn(`[ResolveExport] ambiguous resolution for ${exportName['[[Value]]']}`);
+
+                          cache.set(exportName['[[Value]]'], $resolution = new $String(realm, 'ambiguous'));
+                          return $resolution;
+                        }
+                      }
+                    } else {
+                      this.logger.warn(`[ResolveExport] null resolution for ${exportName['[[Value]]']}`);
+                    }
+                  },
+                );
+              },
+            );
+          },
+        );
+      }
+
+      return awaitIfPromise(
+        intermediate,
+        value => value === void 0,
+        () => {
+          if (starResolution.isNull) {
+            this.logger.warn(() => {
+              let msg = `These were the exports available from "${this.$file.path}":`;
+
+              for (const e of this.LocalExportEntries) {
+                msg = `${msg}\n  local:    { ${e.LocalName} as ${e.ExportName} }`;
+              }
+
+              for (const e of this.IndirectExportEntries) {
+                msg = `${msg}\n  indirect: { ${e.LocalName} as ${e.ExportName} } from ${e.ModuleRequest}:`;
+              }
+
+              for (const e of this.StarExportEntries) {
+                msg = `${msg}\n  star:     * from ${e.ModuleRequest}`;
+              }
+
+              return `[ResolveExport] starResolution is null for ${exportName['[[Value]]']}\n${msg}`;
+            });
           }
-        }
-      }
+
+          // 9. Return starResolution.
+          cache.set(exportName['[[Value]]'], $resolution = starResolution);
+          return $resolution;
+        },
+      );
     }
 
-    if (starResolution.isNull) {
-      this.logger.warn(`[ResolveExport] starResolution is null for ${exportName['[[Value]]']}`);
-    }
-
-    // 9. Return starResolution.
-    return starResolution;
+    this.logger.trace(`ResolveExport(#${ctx.id},exportName=${exportName}) cache hit at ${this.$file.path}`);
+    return $resolution;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-moduleevaluation
   // 15.2.1.16.2 Evaluate ( ) Concrete Method
-  public EvaluateModule(
+  public async EvaluateModule(
     ctx: ExecutionContext,
-  ): $Any {
+  ): Promise<$Any> {
     this.logger.debug(`${this.path}.EvaluateModule()`);
 
     const realm = ctx.Realm;
@@ -1635,7 +1820,7 @@ export class $ESModule implements I$Node, IModule {
     const stack: $ESModule[] = [];
 
     // 4. Let result be InnerModuleEvaluation(module, stack, 0).
-    const result = this.EvaluateModuleInner(ctx, stack, 0);
+    const result = await this.EvaluateModuleInner(ctx, stack, 0);
 
     // 5. If result is an abrupt completion, then
     if (result.isAbrupt) {
@@ -1662,11 +1847,11 @@ export class $ESModule implements I$Node, IModule {
 
   // http://www.ecma-international.org/ecma-262/#sec-innermoduleevaluation
   // 15.2.1.16.2.1 InnerModuleEvaluation ( module , stack , idx )
-  public EvaluateModuleInner(
+  public async EvaluateModuleInner(
     ctx: ExecutionContext,
     stack: $ESModule[],
     idx: number,
-  ): $Number | $Error {
+  ): Promise<$Number | $Error> {
     ctx.checkTimeout();
 
     this.logger.debug(`${this.path}.EvaluateModuleInner(#${ctx.id})`);
@@ -1709,11 +1894,12 @@ export class $ESModule implements I$Node, IModule {
     // 10. For each String required that is an element of module.[[RequestedModules]], do
     for (const required of this.RequestedModules) {
       // 10. a. Let requiredModule be ! HostResolveImportedModule(module, required).
-      const requiredModule = this.moduleResolver.ResolveImportedModule(ctx, this, required) as $ESModule; // TODO
+      const requiredModule = await this.ws.ResolveImportedModule(realm, this, required.specifier) as $ESModule; // TODO
+      required.resolveWith(requiredModule);
 
       // 10. b. NOTE: Instantiate must be completed successfully prior to invoking this method, so every requested module is guaranteed to resolve successfully.
       // 10. c. Set idx to ? InnerModuleEvaluation(requiredModule, stack, idx).
-      const $EvaluateModuleInnerResult = requiredModule.EvaluateModuleInner(ctx, stack, idx);
+      const $EvaluateModuleInnerResult = await requiredModule.EvaluateModuleInner(ctx, stack, idx);
       if ($EvaluateModuleInnerResult.isAbrupt) { return $EvaluateModuleInnerResult.enrichWith(ctx, this); }
 
       idx = $EvaluateModuleInnerResult['[[Value]]'];
@@ -1989,18 +2175,17 @@ export class $ESModule implements I$Node, IModule {
     this.node = void 0;
     this.realm = void 0;
     this.pkg = void 0;
-    this.moduleResolver = void 0;
+    this.ws = void 0;
     this.compilerOptions = void 0;
   }
 }
 
 export class $DocumentFragment implements I$Node, IModule {
-  public readonly '<IModule>': unknown;
+  public '<IModule>'!: unknown;
 
-  public readonly documentFragment: $DocumentFragment = this;
+  public documentFragment: $DocumentFragment = this;
   public readonly parent: $DocumentFragment = this;
-  public readonly ctx: Context = Context.None;
-  public readonly depth: number = 0;
+  public depth: number = 0;
 
   public readonly path: string;
 
@@ -2013,7 +2198,7 @@ export class $DocumentFragment implements I$Node, IModule {
 
   public constructor(
     public readonly logger: ILogger,
-    public readonly $file: IFile,
+    public readonly $file: FileEntry,
     public readonly node: DocumentFragment,
     public readonly realm: Realm,
     public readonly pkg: NPMPackage | null,
@@ -2024,44 +2209,44 @@ export class $DocumentFragment implements I$Node, IModule {
 
     this.logger = logger.root;
 
-    this.path = `DocumentFragment<(...)${$file.rootlessPath}>`;
+    this.path = `DocumentFragment<(...)${$file.path}>`;
   }
 
   public ResolveExport(
     ctx: ExecutionContext,
     exportName: $String,
     resolveSet: ResolveSet,
-  ): ResolvedBindingRecord | $Null | $String<'ambiguous'> {
+  ): MaybePromise<ResolvedBindingRecord | $Null | $String<'ambiguous'>> {
     ctx.checkTimeout();
 
     this.logger.debug(`${this.path}.[ResolveExport] returning content as '${exportName['[[Value]]']}'`);
 
-    return new ResolvedBindingRecord(this, exportName);
+    return new ResolvedBindingRecord(this, { LocalName: exportName } as any); // TODO: fixup
   }
 
-  public GetExportedNames(
+  public async GetExportedNames(
     ctx: ExecutionContext,
     exportStarSet: Set<IModule>,
-  ): $List<$String> | $Error {
+  ): Promise<$List<$String> | $Error> {
     ctx.checkTimeout();
 
     return new $List<$String>();
   }
 
-  public Instantiate(
+  public async Instantiate(
     ctx: ExecutionContext,
-  ): $Undefined | $Error {
+  ): Promise<$Undefined | $Error> {
     ctx.checkTimeout();
 
     return ctx.Realm['[[Intrinsics]]'].undefined;
   }
 
   /** @internal */
-  public _InnerModuleInstantiation(
+  public async _InnerModuleInstantiation(
     ctx: ExecutionContext,
     stack: IModule[],
     idx: $Number,
-  ): $Number | $Error {
+  ): Promise<$Number | $Error> {
     ctx.checkTimeout();
 
     return idx;
@@ -2072,62 +2257,10 @@ export class $DocumentFragment implements I$Node, IModule {
   }
 }
 
-export type $$ModuleBody = (
-  $ModuleBlock |
-  $ModuleDeclaration
-);
-
 export type $$ModuleName = (
   $Identifier |
   $StringLiteral
 );
-
-export class $ModuleDeclaration implements I$Node {
-  public get $kind(): SyntaxKind.ModuleDeclaration { return SyntaxKind.ModuleDeclaration; }
-
-  public readonly modifierFlags: ModifierFlags;
-
-  public readonly $name: $$ModuleName;
-  public readonly $body: $Identifier | $ModuleBlock | $ModuleDeclaration | undefined;
-
-  public constructor(
-    public readonly node: ModuleDeclaration,
-    public readonly parent: $ESModule | $$ModuleBody,
-    public readonly ctx: Context,
-    public readonly idx: number,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ModuleDeclaration`,
-  ) {
-    this.modifierFlags = modifiersToModifierFlags(node.modifiers);
-
-    if (node.name.kind === SyntaxKind.Identifier) {
-      this.$name = new $Identifier(node.name, this, ctx, -1);
-    } else {
-      this.$name = new $StringLiteral(node.name, this, ctx, -1);
-    }
-
-    if (node.body === void 0) {
-      this.$body = void 0;
-    } else {
-      switch (node.body.kind) {
-        case SyntaxKind.Identifier:
-          this.$body = new $Identifier(node.body, this, ctx, -1);
-          break;
-        case SyntaxKind.ModuleBlock:
-          this.$body = new $ModuleBlock(node.body, this, ctx);
-          break;
-        case SyntaxKind.ModuleDeclaration:
-          this.$body = new $ModuleDeclaration(node.body, this, ctx, -1);
-          break;
-        default:
-          throw new Error(`Unexpected syntax node: ${SyntaxKind[(node as Node).kind]}.`);
-      }
-    }
-  }
-}
 
 // http://www.ecma-international.org/ecma-262/#importentry-record
 /**
@@ -2161,38 +2294,67 @@ export type $$ModuleReference = (
 export class $ImportEqualsDeclaration implements I$Node {
   public get $kind(): SyntaxKind.ImportEqualsDeclaration { return SyntaxKind.ImportEqualsDeclaration; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $name: $Identifier;
-  public readonly $moduleReference: $$ModuleReference;
+  public $name!: $Identifier;
+  public $moduleReference!: $$ModuleReference;
 
-  public constructor(
+  public parent!: $ESModule | $ModuleBlock;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ImportEqualsDeclaration,
-    public readonly parent: $ESModule | $ModuleBlock,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ImportEqualsDeclaration`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+    this.path = `${path}${$i(idx)}.ImportEqualsDeclaration`;
+  }
 
-    this.$name = $identifier(node.name, this, ctx, -1);
+  public static create(
+    node: ImportEqualsDeclaration,
+    idx: number,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ImportEqualsDeclaration {
+    const $node = new $ImportEqualsDeclaration(node, idx, depth, mos, realm, logger, path);
+
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
+
+    ($node.$name = $identifier(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     switch (node.moduleReference.kind) {
       case SyntaxKind.Identifier:
-        this.$moduleReference = new $Identifier(node.moduleReference, this, ctx, -1);
+        ($node.$moduleReference = $Identifier.create(node.moduleReference, -1, depth + 1, mos, realm, logger, path)).parent = $node;
         break;
       case SyntaxKind.QualifiedName:
-        this.$moduleReference = new $QualifiedName(node.moduleReference, this, ctx);
+        ($node.$moduleReference = $QualifiedName.create(node.moduleReference, depth + 1, mos, realm, logger, path)).parent = $node;
         break;
       case SyntaxKind.ExternalModuleReference:
-        this.$moduleReference = new $ExternalModuleReference(node.moduleReference, this, ctx);
+        ($node.$moduleReference = $ExternalModuleReference.create(node.moduleReference, depth + 1, mos, realm, logger, path)).parent = $node;
         break;
       default:
         throw new Error(`Unexpected syntax node: ${SyntaxKind[(node as Node).kind]}.`);
     }
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$name.hydrate(ctx);
+    this.$moduleReference.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 }
 
@@ -2203,53 +2365,125 @@ export class $ImportEqualsDeclaration implements I$Node {
 export class $ImportDeclaration implements I$Node {
   public get $kind(): SyntaxKind.ImportDeclaration { return SyntaxKind.ImportDeclaration; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $importClause: $ImportClause | $Undefined;
-  public readonly $moduleSpecifier: $StringLiteral;
+  public moduleSpecifier!: $String;
 
-  public readonly moduleSpecifier: $String;
+  public $importClause!: $ImportClause | $Undefined;
+  public $moduleSpecifier!: $StringLiteral;
 
   // http://www.ecma-international.org/ecma-262/#sec-imports-static-semantics-boundnames
   // 15.2.2.2 Static Semantics: BoundNames
-  public readonly BoundNames: readonly $String[];
+  public BoundNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-imports-static-semantics-importentries
   // 15.2.2.3 Static Semantics: ImportEntries
-  public readonly ImportEntries: readonly ImportEntryRecord[];
+  public ImportEntries!: readonly ImportEntryRecord[];
   // http://www.ecma-international.org/ecma-262/#sec-imports-static-semantics-modulerequests
   // 15.2.2.5 Static Semantics: ModuleRequests
-  public readonly ModuleRequests: readonly $String[];
+  public ModuleRequests!: readonly ModuleRequest[];
 
-  public constructor(
+  public parent!: $ESModule | $ModuleBlock;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ImportDeclaration,
-    public readonly parent: $ESModule | $ModuleBlock,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ImportDeclaration`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+    this.path = `${path}${$i(idx)}.ImportDeclaration`;
+  }
 
-    const $moduleSpecifier = this.$moduleSpecifier = new $StringLiteral(node.moduleSpecifier as StringLiteral, this, ctx, -1);
+  public static create(
+    node: ImportDeclaration,
+    idx: number,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ImportDeclaration {
+    const $node = new $ImportDeclaration(node, idx, depth, mos, realm, logger, path);
 
-    const moduleSpecifier = this.moduleSpecifier = $moduleSpecifier.StringValue;
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
+
+    ($node.$moduleSpecifier = $StringLiteral.create(node.moduleSpecifier as StringLiteral, -1, depth + 1, mos, realm, logger, path)).parent = $node;
 
     if (node.importClause === void 0) {
-      this.$importClause = new $Undefined(realm, void 0, void 0, this);
+      $node.$importClause = new $Undefined(realm, void 0, void 0, $node);
+    } else {
+      ($node.$importClause = $ImportClause.create(node.importClause, depth + 1, mos, realm, logger, path)).parent = $node;
+    }
 
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$moduleSpecifier.hydrate(ctx);
+    const moduleSpecifier = this.moduleSpecifier = this.$moduleSpecifier.StringValue;
+
+    if (this.$importClause instanceof $Undefined) {
       this.BoundNames = emptyArray;
       this.ImportEntries = emptyArray;
     } else {
-      const $importClause = this.$importClause = new $ImportClause(node.importClause, this, ctx);
-
-      this.BoundNames = $importClause.BoundNames;
-      this.ImportEntries = $importClause.ImportEntriesForModule;
+      this.$importClause.hydrate(ctx, moduleSpecifier);
+      this.BoundNames = this.$importClause.BoundNames;
+      this.ImportEntries = this.$importClause.ImportEntriesForModule;
     }
 
-    this.ModuleRequests = [moduleSpecifier];
+    this.ModuleRequests = [new ModuleRequest(this, moduleSpecifier)];
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] | undefined {
+    const sourceMos = this.mos;
+    const targetMos = this.ModuleRequests[0].resolvedModule!;
+    if (sourceMos.pkg !== targetMos.pkg) {
+      const relativePath = `${computeRelativeDirectory(sourceMos.$file.dir, targetMos.$file.shortPath)}.js`;
+      if (this.$importClause instanceof $Undefined) {
+        return createImportDeclaration(
+          /* decorators      */void 0,
+          /* modifiers       */void 0,
+          /* importClause    */void 0,
+          /* moduleSpecifier */createStringLiteral(relativePath),
+        );
+      }
+      const $importClause = this.$importClause.transform(tctx);
+      if ($importClause === void 0) {
+        return void 0;
+      }
+      return createImportDeclaration(
+        /* decorators      */void 0,
+        /* modifiers       */void 0,
+        /* importClause    */$importClause,
+        /* moduleSpecifier */createStringLiteral(relativePath),
+      );
+    }
+
+    const jsPath = `${this.$moduleSpecifier.StringValue['[[Value]]']}.js`;
+    if (this.$importClause instanceof $Undefined) {
+      return createImportDeclaration(
+        /* decorators      */void 0,
+        /* modifiers       */void 0,
+        /* importClause    */void 0,
+        /* moduleSpecifier */createStringLiteral(jsPath),
+      );
+    }
+    const $importClause = this.$importClause.transform(tctx);
+    if ($importClause === void 0) {
+      return void 0;
+    }
+    return createImportDeclaration(
+      /* decorators      */void 0,
+      /* modifiers       */void 0,
+      /* importClause    */$importClause,
+      /* moduleSpecifier */createStringLiteral(jsPath),
+    );
   }
 }
 
@@ -2262,41 +2496,68 @@ export class $ImportDeclaration implements I$Node {
 export class $ImportClause implements I$Node {
   public get $kind(): SyntaxKind.ImportClause { return SyntaxKind.ImportClause; }
 
-  public readonly $name: $Identifier | $Undefined;
-  public readonly $namedBindings: $NamespaceImport | $NamedImports | undefined;
-
-  public readonly moduleSpecifier: $String;
+  public $name!: $Identifier | $Undefined;
+  public $namedBindings!: $NamespaceImport | $NamedImports | undefined;
 
   // http://www.ecma-international.org/ecma-262/#sec-imports-static-semantics-boundnames
   // 15.2.2.2 Static Semantics: BoundNames
-  public readonly BoundNames: readonly $String[];
+  public BoundNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-importentriesformodule
   // 15.2.2.4 Static Semantics: ImportEntriesForModule
-  public readonly ImportEntriesForModule: readonly ImportEntryRecord[];
+  public ImportEntriesForModule!: readonly ImportEntryRecord[];
 
-  public constructor(
+  public parent!: $ImportDeclaration;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ImportClause,
-    public readonly parent: $ImportDeclaration,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.ImportClause`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const intrinsics = realm['[[Intrinsics]]'];
+    this.path = `${path}.ImportClause`;
+  }
 
-    const moduleSpecifier = this.moduleSpecifier = parent.moduleSpecifier;
+  public static create(
+    node: ImportClause,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ImportClause {
+    const $node = new $ImportClause(node, depth, mos, realm, logger, path);
+
+    if (node.name === void 0) {
+      $node.$name = new $Undefined(realm, void 0, void 0, $node);
+    } else {
+      ($node.$name = $Identifier.create(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    }
+
+    if (node.namedBindings === void 0) {
+      $node.$namedBindings = void 0;
+    } else {
+      if (node.namedBindings.kind === SyntaxKind.NamespaceImport) {
+        ($node.$namedBindings = $NamespaceImport.create(node.namedBindings, depth + 1, mos, realm, logger, path)).parent = $node;
+      } else {
+        ($node.$namedBindings = $NamedImports.create(node.namedBindings, depth + 1, mos, realm, logger, path)).parent = $node;
+      }
+    }
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext, moduleSpecifier: $String): this {
+    const intrinsics = this.realm['[[Intrinsics]]'];
 
     const BoundNames = this.BoundNames = [] as $String[];
     const ImportEntriesForModule = this.ImportEntriesForModule = [] as ImportEntryRecord[];
 
-    if (node.name === void 0) {
-      this.$name = new $Undefined(realm, void 0, void 0, this);
-    } else {
-      const $name = this.$name = new $Identifier(node.name, this, ctx, -1);
-
-      const [localName] = $name.BoundNames;
+    if (!(this.$name instanceof $Undefined)) {
+      this.$name.hydrate(ctx);
+      const [localName] = this.$name.BoundNames;
       BoundNames.push(localName);
       ImportEntriesForModule.push(
         new ImportEntryRecord(
@@ -2308,91 +2569,158 @@ export class $ImportClause implements I$Node {
       );
     }
 
-    if (node.namedBindings === void 0) {
-      this.$namedBindings = void 0;
-    } else {
-      if (node.namedBindings.kind === SyntaxKind.NamespaceImport) {
-        const $namedBindings = this.$namedBindings = new $NamespaceImport(node.namedBindings, this, ctx);
-        BoundNames.push(...$namedBindings.BoundNames);
-        ImportEntriesForModule.push(...$namedBindings.ImportEntriesForModule);
-      } else {
-        const $namedBindings = this.$namedBindings = new $NamedImports(node.namedBindings, this, ctx);
-        BoundNames.push(...$namedBindings.BoundNames);
-        ImportEntriesForModule.push(...$namedBindings.ImportEntriesForModule);
-      }
+    if (this.$namedBindings !== void 0) {
+      this.$namedBindings.hydrate(ctx, moduleSpecifier);
+      BoundNames.push(...this.$namedBindings.BoundNames);
+      ImportEntriesForModule.push(...this.$namedBindings.ImportEntriesForModule);
     }
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] | undefined {
+    const node = this.node;
+    const $name = this.$name instanceof $Undefined ? void 0 : this.$name.transform(tctx);
+    const $namedBindings = this.$namedBindings === void 0 ? void 0 : this.$namedBindings.transform(tctx);
+
+    if (
+      $name === node.name &&
+      $namedBindings === node.namedBindings
+    ) {
+      return node;
+    }
+
+    if ($name === void 0 && $namedBindings === void 0) {
+      return void 0;
+    }
+
+    return createImportClause(
+      $name,
+      $namedBindings,
+    );
   }
 }
 
 export class $NamedImports implements I$Node {
   public get $kind(): SyntaxKind.NamedImports { return SyntaxKind.NamedImports; }
 
-  public readonly $elements: readonly $ImportSpecifier[];
-
-  public readonly moduleSpecifier: $String;
+  public $elements!: readonly $ImportSpecifier[];
 
   // http://www.ecma-international.org/ecma-262/#sec-imports-static-semantics-boundnames
   // 15.2.2.2 Static Semantics: BoundNames
-  public readonly BoundNames: readonly $String[];
+  public BoundNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-importentriesformodule
   // 15.2.2.4 Static Semantics: ImportEntriesForModule
-  public readonly ImportEntriesForModule: readonly ImportEntryRecord[];
+  public ImportEntriesForModule!: readonly ImportEntryRecord[];
 
-  public constructor(
+  public parent!: $ImportClause;
+  public readonly path: string;
+
+  public moduleSpecifier!: $String;
+
+  private constructor(
     public readonly node: NamedImports,
-    public readonly parent: $ImportClause,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.NamedImports`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.moduleSpecifier = parent.moduleSpecifier;
+    this.path = `${path}.NamedImports`;
+  }
 
-    const $elements = this.$elements = node.elements.map(x => new $ImportSpecifier(x, this, ctx));
+  public static create(
+    node: NamedImports,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NamedImports {
+    const $node = new $NamedImports(node, depth, mos, realm, logger, path);
 
-    this.BoundNames = $elements.flatMap(getBoundNames);
-    this.ImportEntriesForModule = $elements.flatMap(getImportEntriesForModule);
+    const $elements = $node.$elements = node.elements.map(x => $ImportSpecifier.create(x, depth + 1, mos, realm, logger, path));
+    $elements.forEach(x => x.parent = $node);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext, moduleSpecifier: $String): this {
+    this.moduleSpecifier = moduleSpecifier;
+    this.$elements.forEach(x => x.hydrate(ctx, moduleSpecifier));
+    this.BoundNames = this.$elements.flatMap(getBoundNames);
+    this.ImportEntriesForModule = this.$elements.flatMap(getImportEntriesForModule);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] | undefined {
+    const transformedList = transformList(tctx, this.$elements, this.node.elements);
+
+    if (transformedList === void 0) {
+      return this.node;
+    }
+
+    if (transformedList.length === 0) {
+      return void 0;
+    }
+
+    return createNamedImports(transformedList);
   }
 }
 
 export class $ImportSpecifier implements I$Node {
   public get $kind(): SyntaxKind.ImportSpecifier { return SyntaxKind.ImportSpecifier; }
 
-  public readonly $propertyName: $Identifier | $Undefined;
-  public readonly $name: $Identifier;
+  public $propertyName!: $Identifier | $Undefined;
+  public $name!: $Identifier;
 
   // http://www.ecma-international.org/ecma-262/#sec-imports-static-semantics-boundnames
   // 15.2.2.2 Static Semantics: BoundNames
-  public readonly BoundNames: readonly [$String];
+  public BoundNames!: readonly [$String];
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-importentriesformodule
   // 15.2.2.4 Static Semantics: ImportEntriesForModule
-  public readonly ImportEntriesForModule: readonly [ImportEntryRecord];
+  public ImportEntriesForModule!: readonly [ImportEntryRecord];
 
-  public constructor(
+  public parent!: $NamedImports;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ImportSpecifier,
-    public readonly parent: $NamedImports,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.ImportSpecifier`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    let $propertyName: $Identifier | $Undefined;
-    if (node.propertyName === void 0) {
-      $propertyName = this.$propertyName = new $Undefined(realm, void 0, void 0, this);
-    } else {
-      $propertyName = this.$propertyName = new $Identifier(node.propertyName, this, ctx, -1);
-    }
-    const $name = this.$name = $identifier(node.name, this, ctx, -1);
+    this.path = `${path}.ImportSpecifier`;
+  }
 
+  public static create(
+    node: ImportSpecifier,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ImportSpecifier {
+    const $node = new $ImportSpecifier(node, depth, mos, realm, logger, path);
+
+    if (node.propertyName === void 0) {
+      $node.$propertyName = new $Undefined(realm, void 0, void 0, $node);
+    } else {
+      ($node.$propertyName = $Identifier.create(node.propertyName, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    }
+    ($node.$name = $identifier(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext, moduleSpecifier: $String): this {
+    this.$name.hydrate(ctx);
     const BoundNames = this.BoundNames = this.$name.BoundNames;
 
-    const moduleSpecifier = parent.moduleSpecifier;
-
-    if ($propertyName.isUndefined) {
+    if (this.$propertyName.isUndefined) {
       const [localName] = BoundNames;
       this.ImportEntriesForModule = [
         new ImportEntryRecord(
@@ -2403,8 +2731,9 @@ export class $ImportSpecifier implements I$Node {
         ),
       ];
     } else {
-      const importName = $propertyName.StringValue;
-      const localName = $name.StringValue;
+      this.$propertyName.hydrate(ctx);
+      const importName = this.$propertyName.StringValue;
+      const localName = this.$name.StringValue;
       this.ImportEntriesForModule = [
         new ImportEntryRecord(
           /* source */this,
@@ -2414,40 +2743,79 @@ export class $ImportSpecifier implements I$Node {
         ),
       ];
     }
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] | undefined {
+    return this.isValueAliasDeclaration ? this.node : void 0;
+  }
+
+  private _valueDeclaration: $$ValueDeclaration | undefined | null = void 0;
+  public get valueDeclaration(): $$ValueDeclaration | null {
+    let valueDeclaration = this._valueDeclaration;
+    if (valueDeclaration === void 0) {
+      const name = this.$propertyName instanceof $Undefined ? this.$name.StringValue : this.$propertyName.StringValue;
+      const mos = this.mos.ws.ResolveImportedModule(this.realm, this.mos, this.parent.moduleSpecifier) as $ESModule;
+      valueDeclaration = this._valueDeclaration = mos.getDeclaringNode(name);
+    }
+
+    return valueDeclaration;
+  }
+
+  public get isValueAliasDeclaration(): boolean {
+    return this.valueDeclaration !== null;
   }
 }
 
 export class $NamespaceImport implements I$Node {
   public get $kind(): SyntaxKind.NamespaceImport { return SyntaxKind.NamespaceImport; }
 
-  public readonly $name: $Identifier;
+  public $name!: $Identifier;
 
   // http://www.ecma-international.org/ecma-262/#sec-imports-static-semantics-boundnames
   // 15.2.2.2 Static Semantics: BoundNames
-  public readonly BoundNames: readonly $String[];
+  public BoundNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-importentriesformodule
   // 15.2.2.4 Static Semantics: ImportEntriesForModule
-  public readonly ImportEntriesForModule: readonly [ImportEntryRecord];
+  public ImportEntriesForModule!: readonly [ImportEntryRecord];
 
-  public constructor(
+  public parent!: $ImportClause;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: NamespaceImport,
-    public readonly parent: $ImportClause,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.NamespaceImport`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const intrinsics = realm['[[Intrinsics]]'];
+    this.path = `${path}.NamespaceImport`;
+  }
 
-    const $name = this.$name = new $Identifier(node.name, this, ctx, -1);
+  public static create(
+    node: NamespaceImport,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NamespaceImport {
+    const $node = new $NamespaceImport(node, depth, mos, realm, logger, path);
 
-    this.BoundNames = $name.BoundNames;
+    ($node.$name = $Identifier.create(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
 
-    const moduleSpecifier = parent.moduleSpecifier;
+    return $node;
+  }
 
-    const localName = $name.StringValue;
+  public hydrate(ctx: HydrateContext, moduleSpecifier: $String): this {
+    const intrinsics = this.realm['[[Intrinsics]]'];
+
+    this.$name.hydrate(ctx);
+    this.BoundNames = this.$name.BoundNames;
+
+    const localName = this.$name.StringValue;
     this.ImportEntriesForModule = [
       new ImportEntryRecord(
         /* source */this,
@@ -2456,6 +2824,12 @@ export class $NamespaceImport implements I$Node {
         /* LocalName */localName,
       ),
     ];
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 }
 
@@ -2474,7 +2848,7 @@ export class $NamespaceImport implements I$Node {
  */
 export class ExportEntryRecord {
   public constructor(
-    public readonly source: $FunctionDeclaration | $ClassDeclaration | $VariableStatement | $ExportDeclaration | $ExportSpecifier | $ESModule | $TypeAliasDeclaration | $InterfaceDeclaration | $EnumDeclaration,
+    public readonly source: $FunctionDeclaration | $ClassDeclaration | $VariableStatement | $ExportDeclaration | $ExportSpecifier | $ESModule | $TypeAliasDeclaration | $InterfaceDeclaration | $EnumDeclaration | $ModuleDeclaration,
     public readonly ExportName: $String | $Null,
     public readonly ModuleRequest: $String | $Null,
     public readonly ImportName: $String | $Null,
@@ -2485,99 +2859,162 @@ export class ExportEntryRecord {
 export class $ExportAssignment implements I$Node {
   public get $kind(): SyntaxKind.ExportAssignment { return SyntaxKind.ExportAssignment; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $expression: $$AssignmentExpressionOrHigher;
+  public $expression!: $$AssignmentExpressionOrHigher;
 
-  public readonly BoundNames: readonly [$String<'*default*'>];
+  public BoundNames!: readonly [$String<'*default*'>];
 
-  public constructor(
+  public parent!: $ESModule;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ExportAssignment,
-    public readonly parent: $ESModule,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ExportAssignment`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const intrinsics = realm['[[Intrinsics]]'];
+    this.path = `${path}${$i(idx)}.ExportAssignment`;
+  }
 
-    this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+  public static create(
+    node: ExportAssignment,
+    idx: number,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ExportAssignment {
+    const $node = new $ExportAssignment(node, idx, depth, mos, realm, logger, path);
 
-    this.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, this, ctx, -1);
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
+
+    ($node.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    const intrinsics = this.realm['[[Intrinsics]]'];
+
+    this.$expression.hydrate(ctx);
 
     this.BoundNames = [intrinsics['*default*']];
+
+    return this;
   }
+
+  public get isValueAliasDeclaration(): boolean {
+    return true;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
+}
+
+function isValueAliasDeclaration(node: { readonly isValueAliasDeclaration: boolean }): boolean {
+  return node.isValueAliasDeclaration;
 }
 
 export class $ExportDeclaration implements I$Node {
   public get $kind(): SyntaxKind.ExportDeclaration { return SyntaxKind.ExportDeclaration; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $exportClause: $NamedExports | undefined;
-  public readonly $moduleSpecifier: $StringLiteral | undefined;
+  public $exportClause!: $NamedExports | undefined;
+  public $moduleSpecifier!: $StringLiteral | undefined;
 
-  public readonly moduleSpecifier: $String | $Null;
+  public moduleSpecifier!: $String | $Null;
 
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-boundnames
   // 15.2.3.2 Static Semantics: BoundNames
-  public readonly BoundNames: readonly $String[] = emptyArray;
+  public BoundNames: readonly $String[] = emptyArray;
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-exportedbindings
   // 15.2.3.3 Static Semantics: ExportedBindings
-  public readonly ExportedBindings: readonly $String[] = emptyArray;
+  public ExportedBindings: readonly $String[] = emptyArray;
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-exportednames
   // 15.2.3.4 Static Semantics: ExportedNames
-  public readonly ExportedNames: readonly $String[];
+  public ExportedNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-exportentries
   // 15.2.3.5 Static Semantics: ExportEntries
-  public readonly ExportEntries: readonly ExportEntryRecord[];
+  public ExportEntries!: readonly ExportEntryRecord[];
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-isconstantdeclaration
   // 15.2.3.7 Static Semantics: IsConstantDeclaration
-  public readonly IsConstantDeclaration: false = false;
+  public IsConstantDeclaration: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-lexicallyscopeddeclarations
   // 15.2.3.8 Static Semantics: LexicallyScopedDeclarations
-  public readonly LexicallyScopedDeclarations: readonly $$ESDeclaration[] = emptyArray;
+  public LexicallyScopedDeclarations: readonly $$ESDeclaration[] = emptyArray;
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-modulerequests
   // 15.2.3.9 Static Semantics: ModuleRequests
-  public readonly ModuleRequests: readonly $String[];
+  public ModuleRequests!: readonly ModuleRequest[];
 
-  public readonly TypeDeclarations: readonly $$TSDeclaration[] = emptyArray;
-  public readonly IsType: false = false;
+  public TypeDeclarations: readonly $$TSDeclaration[] = emptyArray;
+  public IsType: false = false;
 
-  public constructor(
+  public parent!: $ESModule | $ModuleBlock;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ExportDeclaration,
-    public readonly parent: $ESModule | $ModuleBlock,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ExportDeclaration`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const intrinsics = realm['[[Intrinsics]]'];
+    this.path = `${path}${$i(idx)}.ExportDeclaration`;
+  }
 
-    this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+  public static create(
+    node: ExportDeclaration,
+    idx: number,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ExportDeclaration {
+    const $node = new $ExportDeclaration(node, idx, depth, mos, realm, logger, path);
 
-    let moduleSpecifier: $String | $Null;
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
+
     if (node.moduleSpecifier === void 0) {
-      this.$moduleSpecifier = void 0;
-      moduleSpecifier = this.moduleSpecifier = intrinsics.null;
-
-      this.ModuleRequests = emptyArray;
+      $node.$moduleSpecifier = void 0;
     } else {
-      const $moduleSpecifier = this.$moduleSpecifier = new $StringLiteral(node.moduleSpecifier as StringLiteral, this, ctx, -1);
-      moduleSpecifier = this.moduleSpecifier = $moduleSpecifier!.StringValue;
-
-      this.ModuleRequests = [moduleSpecifier];
+      ($node.$moduleSpecifier = $StringLiteral.create(node.moduleSpecifier as StringLiteral, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     }
 
     if (node.exportClause === void 0) {
-      this.$exportClause = void 0;
+      $node.$exportClause = void 0;
+    } else {
+      ($node.$exportClause = $NamedExports.create(node.exportClause, depth + 1, mos, realm, logger, path)).parent = $node;
+    }
 
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    const intrinsics = this.realm['[[Intrinsics]]'];
+
+    let moduleSpecifier: $String | $Null;
+    if (this.$moduleSpecifier === void 0) {
+      moduleSpecifier = this.moduleSpecifier = intrinsics.null;
+      this.ModuleRequests = emptyArray;
+    } else {
+      this.$moduleSpecifier.hydrate(ctx);
+      moduleSpecifier = this.moduleSpecifier = this.$moduleSpecifier!.StringValue;
+      this.ModuleRequests = [new ModuleRequest(this, moduleSpecifier)];
+    }
+
+    if (this.$exportClause === void 0) {
       this.ExportedNames = emptyArray;
       this.ExportEntries = [
         new ExportEntryRecord(
@@ -2589,91 +3026,187 @@ export class $ExportDeclaration implements I$Node {
         ),
       ];
     } else {
-      const $exportClause = this.$exportClause = new $NamedExports(node.exportClause, this, ctx);
-
-      this.ExportedNames = $exportClause.ExportedNames;
-      this.ExportEntries = $exportClause.ExportEntriesForModule;
+      this.$exportClause.hydrate(ctx, moduleSpecifier);
+      this.ExportedNames = this.$exportClause.ExportedNames;
+      this.ExportEntries = this.$exportClause.ExportEntriesForModule;
     }
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    if (this.$moduleSpecifier !== void 0) {
+      const sourceMos = this.mos;
+      const targetMos = this.ModuleRequests[0].resolvedModule!;
+      if (sourceMos.pkg !== targetMos.pkg) {
+        const relativePath = `${computeRelativeDirectory(sourceMos.$file.dir, targetMos.$file.shortPath)}.js`;
+        const $exportClause = this.$exportClause === void 0 ? void 0 : this.$exportClause.transform(tctx);
+        return createExportDeclaration(
+          /* decorators      */void 0,
+          /* modifiers       */void 0,
+          /* exportClause    */$exportClause,
+          /* moduleSpecifier */createStringLiteral(relativePath),
+        );
+      }
+
+      const jsPath = `${this.$moduleSpecifier.StringValue['[[Value]]']}.js`;
+      const $exportClause = this.$exportClause === void 0 ? void 0 : this.$exportClause.transform(tctx);
+      return createExportDeclaration(
+        /* decorators      */void 0,
+        /* modifiers       */void 0,
+        /* exportClause    */$exportClause,
+        /* moduleSpecifier */createStringLiteral(jsPath),
+      );
+    }
+
+    const $exportClause = this.$exportClause === void 0 ? void 0 : this.$exportClause.transform(tctx);
+    if ($exportClause !== this.$exportClause?.node) {
+      return createExportDeclaration(
+        /* decorators      */void 0,
+        /* modifiers       */void 0,
+        /* exportClause    */$exportClause,
+        /* moduleSpecifier */void 0,
+      );
+    }
+
+    return this.node;
+  }
+
+  public get isValueAliasDeclaration(): boolean {
+    const exportClause = this.$exportClause;
+    return exportClause !== void 0 && exportClause.$elements.some(isValueAliasDeclaration);
   }
 }
 
 export class $NamedExports implements I$Node {
   public get $kind(): SyntaxKind.NamedExports { return SyntaxKind.NamedExports; }
 
-  public readonly $elements: readonly $ExportSpecifier[];
-
-  public readonly moduleSpecifier: $String | $Null;
+  public $elements!: readonly $ExportSpecifier[];
 
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-exportednames
   // 15.2.3.4 Static Semantics: ExportedNames
-  public readonly ExportedNames: readonly $String[];
+  public ExportedNames!: readonly $String[];
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-exportentriesformodule
   // 15.2.3.6 Static Semantics: ExportEntriesForModule
-  public readonly ExportEntriesForModule: readonly ExportEntryRecord[];
+  public ExportEntriesForModule!: readonly ExportEntryRecord[];
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-referencedbindings
   // 15.2.3.10 Static Semantics: ReferencedBindings
-  public readonly ReferencedBindings: readonly $String[];
+  public ReferencedBindings!: readonly $String[];
 
-  public constructor(
+  public parent!: $ExportDeclaration;
+  public readonly path: string;
+
+  public moduleSpecifier!: $String | $Null;
+
+  private constructor(
     public readonly node: NamedExports,
-    public readonly parent: $ExportDeclaration,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.NamedExports`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.moduleSpecifier = parent.moduleSpecifier;
+    this.path = `${path}.NamedExports`;
+  }
 
-    const $elements = this.$elements = node.elements.map(x => new $ExportSpecifier(x, this, ctx));
+  public static create(
+    node: NamedExports,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NamedExports {
+    const $node = new $NamedExports(node, depth, mos, realm, logger, path);
 
-    this.ExportedNames = $elements.flatMap(getExportedNames);
-    this.ExportEntriesForModule = $elements.flatMap(getExportEntriesForModule);
-    this.ReferencedBindings = $elements.flatMap(getReferencedBindings);
+    const $elements = $node.$elements = node.elements.map(x => $ExportSpecifier.create(x, depth + 1, mos, realm, logger, path));
+    $elements.forEach(x => x.parent = $node);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext, moduleSpecifier: $String | $Null): this {
+    this.$elements.forEach(x => x.hydrate(ctx, moduleSpecifier));
+
+    this.ExportedNames = this.$elements.flatMap(getExportedNames);
+    this.ExportEntriesForModule = this.$elements.flatMap(getExportEntriesForModule);
+    this.ReferencedBindings = this.$elements.flatMap(getReferencedBindings);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] | undefined {
+    const transformedList = transformList(tctx, this.$elements, this.node.elements);
+
+    if (transformedList === void 0) {
+      return this.node;
+    }
+
+    if (transformedList.length === 0) {
+      return void 0;
+    }
+
+    return createNamedExports(transformedList);
   }
 }
 
 export class $ExportSpecifier implements I$Node {
   public get $kind(): SyntaxKind.ExportSpecifier { return SyntaxKind.ExportSpecifier; }
 
-  public readonly $propertyName: $Identifier | $Undefined;
-  public readonly $name: $Identifier;
+  public $propertyName!: $Identifier | $Undefined;
+  public $name!: $Identifier;
 
   // http://www.ecma-international.org/ecma-262/#sec-exports-static-semantics-exportednames
   // 15.2.3.4 Static Semantics: ExportedNames
-  public readonly ExportedNames: readonly [$String];
+  public ExportedNames!: readonly [$String];
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-exportentriesformodule
   // 15.2.3.6 Static Semantics: ExportEntriesForModule
-  public readonly ExportEntriesForModule: readonly [ExportEntryRecord];
+  public ExportEntriesForModule!: readonly [ExportEntryRecord];
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-referencedbindings
   // 15.2.3.10 Static Semantics: ReferencedBindings
-  public readonly ReferencedBindings: readonly [$String];
+  public ReferencedBindings!: readonly [$String];
 
-  public constructor(
+  public parent!: $NamedExports;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ExportSpecifier,
-    public readonly parent: $NamedExports,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.ExportSpecifier`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const intrinsics = realm['[[Intrinsics]]'];
+    this.path = `${path}.ExportSpecifier`;
+  }
 
-    let $propertyName: $Identifier | $Undefined;
+  public static create(
+    node: ExportSpecifier,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ) {
+    const $node = new $ExportSpecifier(node, depth, mos, realm, logger, path);
+
     if (node.propertyName === void 0) {
-      $propertyName = this.$propertyName = new $Undefined(realm, void 0, void 0, this);
+      $node.$propertyName = new $Undefined(realm, void 0, void 0, $node);
     } else {
-      $propertyName = this.$propertyName = new $Identifier(node.propertyName, this, ctx, -1);
+      ($node.$propertyName = $Identifier.create(node.propertyName, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     }
-    const $name = this.$name = new $Identifier(node.name, this, ctx, -1);
+    ($node.$name = $Identifier.create(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
 
-    const moduleSpecifier = parent.moduleSpecifier;
+    return $node;
+  }
 
-    if ($propertyName.isUndefined) {
-      const sourceName = $name.StringValue;
+  public hydrate(ctx: HydrateContext, moduleSpecifier: $String | $Null): this {
+    const intrinsics = this.realm['[[Intrinsics]]'];
+
+    this.$name.hydrate(ctx);
+
+    if (this.$propertyName.isUndefined) {
+      const sourceName = this.$name.StringValue;
 
       this.ReferencedBindings = [sourceName];
       this.ExportedNames = [sourceName];
@@ -2700,8 +3233,10 @@ export class $ExportSpecifier implements I$Node {
         ];
       }
     } else {
-      const exportName = $name.StringValue;
-      const sourceName = $propertyName.StringValue;
+      this.$propertyName.hydrate(ctx);
+
+      const exportName = this.$name.StringValue;
+      const sourceName = this.$propertyName.StringValue;
       this.ReferencedBindings = [sourceName];
 
       this.ExportedNames = [exportName];
@@ -2728,67 +3263,125 @@ export class $ExportSpecifier implements I$Node {
         ];
       }
     }
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] | undefined {
+    return this.isValueAliasDeclaration ? this.node : void 0;
+  }
+
+  private _valueDeclaration: $$ValueDeclaration | undefined | null = void 0;
+  public get valueDeclaration(): $$ValueDeclaration | null {
+    let valueDeclaration = this._valueDeclaration;
+    if (valueDeclaration === void 0) {
+      const name = this.$propertyName instanceof $Undefined ? this.$name.StringValue : this.$propertyName.StringValue;
+      valueDeclaration = this._valueDeclaration = this.mos.getDeclaringNode(name);
+    }
+
+    return valueDeclaration;
+  }
+
+  public get isValueAliasDeclaration(): boolean {
+    return this.valueDeclaration !== null;
   }
 }
 
 export class $NamespaceExportDeclaration implements I$Node {
   public get $kind(): SyntaxKind.NamespaceExportDeclaration { return SyntaxKind.NamespaceExportDeclaration; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $name: $Identifier;
+  public $name!: $Identifier;
 
-  public constructor(
+  public parent!: $$ModuleDeclarationParent;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: NamespaceExportDeclaration,
-    public readonly parent: $$ModuleDeclarationParent,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.NamespaceExportDeclaration`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.modifierFlags = modifiersToModifierFlags(node.modifiers);
-
-    this.$name = $identifier(node.name, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.NamespaceExportDeclaration`;
   }
-}
 
-export class $ModuleBlock implements I$Node {
-  public get $kind(): SyntaxKind.ModuleBlock { return SyntaxKind.ModuleBlock; }
+  public static create(
+    node: NamespaceExportDeclaration,
+    idx: number,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NamespaceExportDeclaration {
+    const $node = new $NamespaceExportDeclaration(node, idx, depth, mos, realm, logger, path);
 
-  // TODO: ModuleBlock shares a lot in common with SourceFile, so we implement this last to try to maximize code reuse / reduce refactoring overhead and/or see if the two can be consolidated.
-  public readonly $statements: readonly $$TSModuleItem[] = emptyArray;
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
 
-  public constructor(
-    public readonly node: ModuleBlock,
-    public readonly parent: $ModuleDeclaration,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.ModuleBlock`,
-  ) {}
+    ($node.$name = $identifier(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$name.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
 }
 
 export class $ExternalModuleReference implements I$Node {
   public get $kind(): SyntaxKind.ExternalModuleReference { return SyntaxKind.ExternalModuleReference; }
 
-  public readonly $expression: $StringLiteral;
+  public $expression!: $StringLiteral;
 
-  public constructor(
+  public parent!: $ImportEqualsDeclaration;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ExternalModuleReference,
-    public readonly parent: $ImportEqualsDeclaration,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.ExternalModuleReference`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = new $StringLiteral(node.expression as StringLiteral, this, ctx, -1);
+    this.path = `${path}.ExternalModuleReference`;
+  }
+
+  public static create(
+    node: ExternalModuleReference,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ExternalModuleReference {
+    const $node = new $ExternalModuleReference(node, depth, mos, realm, logger, path);
+
+    ($node.$expression = $StringLiteral.create(node.expression as StringLiteral, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 }
 
@@ -2805,25 +3398,53 @@ export type $$EntityName = (
 export class $QualifiedName implements I$Node {
   public get $kind(): SyntaxKind.QualifiedName { return SyntaxKind.QualifiedName; }
 
-  public readonly $left: $$EntityName;
-  public readonly $right: $Identifier;
+  public $left!: $$EntityName;
+  public $right!: $Identifier;
 
-  public constructor(
+  public parent!: $$NodeWithQualifiedName;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: QualifiedName,
-    public readonly parent: $$NodeWithQualifiedName,
-    public readonly ctx: Context,
-    public readonly mos: $ESModule = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}.QualifiedName`,
+    public readonly depth: number,
+    public readonly mos: $ESModule,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
+    this.path = `${path}.QualifiedName`;
+  }
+
+  public static create(
+    node: QualifiedName,
+    depth: number,
+    mos: $ESModule,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $QualifiedName {
+    const $node = new $QualifiedName(node, depth, mos, realm, logger, path);
+
     if (node.left.kind === SyntaxKind.Identifier) {
-      this.$left = new $Identifier(node.left, this, ctx, -1);
+      ($node.$left = $Identifier.create(node.left, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     } else {
-      this.$left = new $QualifiedName(node.left, this, ctx);
+      ($node.$left = $QualifiedName.create(node.left, depth + 1, mos, realm, logger, path)).parent = $node;
     }
 
-    this.$right = new $Identifier(node.right, this, ctx, -1);
+    ($node.$right = $Identifier.create(node.right, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$left.hydrate(ctx);
+    this.$right.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 }

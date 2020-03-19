@@ -1,0 +1,48 @@
+{
+  "name": "@aurelia/runtime-node",
+  "version": "0.6.0",
+  "main": "dist/esnext/index.js",
+  "module": "dist/esnext/index.js",
+  "types": "dist/index.d.ts",
+  "typings": "dist/index.d.ts",
+  "license": "MIT",
+  "homepage": "https://aurelia.io",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/aurelia/aurelia"
+  },
+  "bugs": {
+    "url": "https://github.com/aurelia/aurelia/issues"
+  },
+  "keywords": [
+    "aurelia",
+    "runtime-node"
+  ],
+  "files": [
+    "dist",
+    "src",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "lint": "eslint --cache --ext .js,.ts src/",
+    "build": "tsc -b",
+    "dev": "tsc -b -w"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "@aurelia/debug": "0.6.0",
+    "@aurelia/kernel": "0.6.0",
+    "@aurelia/runtime": "0.6.0",
+    "ws": "^7.2.1"
+  },
+  "devDependencies": {
+    "@types/node": "^12.12.21",
+    "@types/ws": "^6.0.4",
+    "tslib": "^1.10.0",
+    "typescript": "^3.7.4"
+  }
+}

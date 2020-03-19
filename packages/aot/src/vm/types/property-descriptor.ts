@@ -23,6 +23,9 @@ import {
   IDisposable,
   Writable,
 } from '@aurelia/kernel';
+import {
+  $$ValueDeclaration,
+} from '../ast/_shared';
 
 let descriptorId = 0;
 
@@ -80,6 +83,8 @@ export class $PropertyDescriptor implements IDisposable {
       this['[[Writable]]'].isEmpty
     );
   }
+
+  public declaringNode: $$ValueDeclaration | null = null;
 
   public constructor(
     public readonly realm: Realm,

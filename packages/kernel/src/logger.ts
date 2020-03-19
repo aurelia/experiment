@@ -472,6 +472,10 @@ export class ConsoleSink implements ISink {
   }
 }
 
+function isLogger(obj: unknown): obj is ILogger {
+  return typeof obj === 'object' && obj !== null && typeof (obj as { info: unknown }).info === 'function';
+}
+
 export class DefaultLogger implements ILogger {
   public readonly root: ILogger;
   public readonly parent: ILogger;
@@ -492,7 +496,7 @@ export class DefaultLogger implements ILogger {
     public readonly scope: string[] = [],
     parent: ILogger | null = null,
   ) {
-    if (parent === null) {
+    if (!isLogger(parent)) {
       this.root = this;
       this.parent = this;
     } else {

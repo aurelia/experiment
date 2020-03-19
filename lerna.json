@@ -29,6 +29,7 @@
     "packages/runtime-html",
     "packages/runtime-html-browser",
     "packages/runtime-html-jsdom",
+    "packages/runtime-node",
     "packages/store",
     "packages/testing",
     "packages/validation",

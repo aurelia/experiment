@@ -1,4 +1,12 @@
 export {
+  fact,
+  inlineData,
+  combiData,
+} from './fixture/decorators';
+export {
+  TestRunner,
+} from './fixture/test-case';
+export {
   assert,
   fail
 } from './assert';
@@ -79,6 +87,20 @@ export {
   padLeft,
   padRight,
 } from './string-manipulation';
+export {
+  TAPPlan,
+  TAPOutput,
+  TAPTestPoint,
+  TAPVersion,
+  TAPBailOut,
+  TAPLine,
+  TAPComment,
+  TAPItem,
+  TAPDirective,
+  TAPParser,
+  TAPLineKind,
+  ITAPChannel,
+} from './tap';
 export {
   // DefinitionBuilder,
   // InstructionBuilder,

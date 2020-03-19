@@ -1,215 +1,246 @@
+/* eslint-disable @typescript-eslint/explicit-member-accessibility */
 import { buildQueryString, join, parseQueryString, relativeToFile } from '@aurelia/kernel';
-import { assert } from '@aurelia/testing';
+import { assert, fact } from '@aurelia/testing';
 
-describe('relativeToFile', function () {
-  it('can make a dot path relative to a simple file', function () {
+export class RelativeToFileTests {
+  @fact()
+  'can make a dot path relative to a simple file'() {
     const file = 'some/file.html';
     const path = './other/module';
 
     assert.strictEqual(relativeToFile(path, file), 'some/other/module', `relativeToFile(path, file)`);
-  });
+  }
 
-  it('can make a dot path relative to an absolute file', function () {
+  @fact()
+  'can make a dot path relative to an absolute file'() {
     const file = 'http://aurelia.io/some/file.html';
     const path = './other/module';
 
     assert.strictEqual(relativeToFile(path, file), 'http://aurelia.io/some/other/module', `relativeToFile(path, file)`);
-  });
+  }
 
-  it('can make a double dot path relative to an absolute file', function () {
+  @fact()
+  'can make a double dot path relative to an absolute file'() {
     const file = 'http://aurelia.io/some/file.html';
     const path = '../other/module';
 
     assert.strictEqual(relativeToFile(path, file), 'http://aurelia.io/other/module', `relativeToFile(path, file)`);
-  });
+  }
 
-  it('returns path if null file provided', function () {
+  @fact()
+  'returns path if null file provided'() {
     const file = null;
     const path = 'module';
 
     assert.strictEqual(relativeToFile(path, file), 'module', `relativeToFile(path, file)`);
-  });
+  }
 
-  it('returns path if empty file provided', function () {
+  @fact()
+  'returns path if empty file provided'() {
     const file = '';
     const path = 'module';
 
     assert.strictEqual(relativeToFile(path, file), 'module', `relativeToFile(path, file)`);
-  });
-});
+  }
+}
 
-describe('join', function () {
-  it('can combine two simple paths', function () {
+export class JoinTests {
+  @fact()
+  'can combine two simple paths'() {
     const path1 = 'one';
     const path2 = 'two';
 
     assert.strictEqual(join(path1, path2), 'one/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine an absolute path and a simple path', function () {
+  @fact()
+  'can combine an absolute path and a simple path'() {
     const path1 = '/one';
     const path2 = 'two';
 
     assert.strictEqual(join(path1, path2), '/one/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine an absolute path and a simple path with slash', function () {
+  @fact()
+  'can combine an absolute path and a simple path with slash'() {
     const path1 = '/one';
     const path2 = '/two';
 
     assert.strictEqual(join(path1, path2), '/one/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine a single slash and a simple path', function () {
+  @fact()
+  'can combine a single slash and a simple path'() {
     const path1 = '/';
     const path2 = 'two';
 
     assert.strictEqual(join(path1, path2), '/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine a single slash and a simple path with slash', function () {
+  @fact()
+  'can combine a single slash and a simple path with slash'() {
     const path1 = '/';
     const path2 = '/two';
 
     assert.strictEqual(join(path1, path2), '/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine an absolute path with protocol and a simple path', function () {
+  @fact()
+  'can combine an absolute path with protocol and a simple path'() {
     const path1 = 'http://aurelia.io';
     const path2 = 'two';
 
     assert.strictEqual(join(path1, path2), 'http://aurelia.io/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine an absolute path with protocol and a simple path with slash', function () {
+  @fact()
+  'can combine an absolute path with protocol and a simple path with slash'() {
     const path1 = 'http://aurelia.io';
     const path2 = '/two';
 
     assert.strictEqual(join(path1, path2), 'http://aurelia.io/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine an absolute path and a simple path with a dot', function () {
+  @fact()
+  'can combine an absolute path and a simple path with a dot'() {
     const path1 = 'http://aurelia.io';
     const path2 = './two';
 
     assert.strictEqual(join(path1, path2), 'http://aurelia.io/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine a simple path and a relative path', function () {
+  @fact()
+  'can combine a simple path and a relative path'() {
     const path1 = 'one';
     const path2 = '../two';
 
     assert.strictEqual(join(path1, path2), 'two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine an absolute path and a relative path', function () {
+  @fact()
+  'can combine an absolute path and a relative path'() {
     const path1 = 'http://aurelia.io/somewhere';
     const path2 = '../two';
 
     assert.strictEqual(join(path1, path2), 'http://aurelia.io/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine a protocol independent path and a simple path', function () {
+  @fact()
+  'can combine a protocol independent path and a simple path'() {
     const path1 = '//aurelia.io';
     const path2 = 'two';
 
     assert.strictEqual(join(path1, path2), '//aurelia.io/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine a protocol independent path and a simple path with slash', function () {
+  @fact()
+  'can combine a protocol independent path and a simple path with slash'() {
     const path1 = '//aurelia.io';
     const path2 = '/two';
 
     assert.strictEqual(join(path1, path2), '//aurelia.io/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine a protocol independent path and a simple path with a dot', function () {
+  @fact()
+  'can combine a protocol independent path and a simple path with a dot'() {
     const path1 = '//aurelia.io';
     const path2 = './two';
 
     assert.strictEqual(join(path1, path2), '//aurelia.io/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine a protocol independent path and a relative path', function () {
+  @fact()
+  'can combine a protocol independent path and a relative path'() {
     const path1 = '//aurelia.io/somewhere';
     const path2 = '../two';
 
     assert.strictEqual(join(path1, path2), '//aurelia.io/two', `join(path1, path2)`);
-  });
+  }
 
-  it('can combine a complex path and a relative path', function () {
+  @fact()
+  'can combine a complex path and a relative path'() {
     const path1 = 'one/three';
     const path2 = '../two';
 
     assert.strictEqual(join(path1, path2), 'one/two', `join(path1, path2)`);
-  });
+  }
 
-  it('returns path2 if path1 null', function () {
+  @fact()
+  'returns path2 if path1 null'() {
     const path1 = null;
     const path2 = 'two';
 
     assert.strictEqual(join(path1, path2), 'two', `join(path1, path2)`);
-  });
+  }
 
-  it('returns path2 if path1 empty', function () {
+  @fact()
+  'returns path2 if path1 empty'() {
     const path1 = '';
     const path2 = 'two';
 
     assert.strictEqual(join(path1, path2), 'two', `join(path1, path2)`);
-  });
+  }
 
-  it('returns path1 if path2 null', function () {
+  @fact()
+  'returns path1 if path2 null'() {
     const path1 = 'one';
     const path2 = null;
 
     assert.strictEqual(join(path1, path2), 'one', `join(path1, path2)`);
-  });
+  }
 
-  it('returns path1 if path2 empty', function () {
+  @fact()
+  'returns path1 if path2 empty'() {
     const path1 = 'one';
     const path2 = '';
 
     assert.strictEqual(join(path1, path2), 'one', `join(path1, path2)`);
-  });
+  }
 
-  it('should respect a trailing slash', function () {
+  @fact()
+  'should respect a trailing slash'() {
     const path1 = 'one/';
     const path2 = 'two/';
 
     assert.strictEqual(join(path1, path2), 'one/two/', `join(path1, path2)`);
-  });
+  }
 
-  it('should respect file:/// protocol with three slashes (empty host)', function () {
+  @fact()
+  'should respect file:/// protocol with three slashes (empty host)'() {
     const path1 = 'file:///one';
     const path2 = '/two';
 
     assert.strictEqual(join(path1, path2), 'file:///one/two', `join(path1, path2)`);
-  });
+  }
 
-  it('should respect file:// protocol with two slashes (host given)', function () {
+  @fact()
+  'should respect file:// protocol with two slashes (host given)'() {
     const path1 = 'file://localhost:8080';
     const path2 = '/two';
 
     assert.strictEqual(join(path1, path2), 'file://localhost:8080/two', `join(path1, path2)`);
-  });
+  }
 
-  it('should allow scheme-relative URL that uses colons in the path', function () {
+  @fact()
+  'should allow scheme-relative URL that uses colons in the path'() {
     const path1 = '//localhost/one:/';
     const path2 = '/two';
 
     assert.strictEqual(join(path1, path2), '//localhost/one:/two', `join(path1, path2)`);
-  });
+  }
 
-  it('should not add more than two leading slashes to http:// protocol', function () {
+  @fact()
+  'should not add more than two leading slashes to http:// protocol'() {
     const path1 = 'http:///';
     const path2 = '/two';
 
     assert.strictEqual(join(path1, path2), 'http://two', `join(path1, path2)`);
-  });
-});
+  }
+}
 
-describe('query strings', function () {
-  it('should build query strings', function () {
+export class QueryStringTests {
+  @fact()
+  'should build query strings'() {
     const gen = buildQueryString;
 
     assert.strictEqual(gen(), '', `gen()`);
@@ -242,9 +273,10 @@ describe('query strings', function () {
     assert.strictEqual(gen({a: {b: ['c', 'd', ['f', 'g']]}}, true), 'a=%5Bobject%20Object%5D', `gen({a: {b: ['c', 'd', ['f', 'g']]}}, true)`);
     assert.strictEqual(gen({a: ['c', 'd', ['f', 'g']]}, true), 'a=c&a=d&a=f%2Cg', `gen({a: ['c', 'd', ['f', 'g']]}, true)`);
     assert.strictEqual(gen({a: ['c', 'd', {f: 'g'}]}, true), 'a=c&a=d&a=%5Bobject%20Object%5D', `gen({a: ['c', 'd', {f: 'g'}]}, true)`);
-  });
+  }
 
-  it('should parse query strings', function () {
+  @fact()
+  'should parse query strings'() {
     const parse = parseQueryString;
 
     assert.deepStrictEqual(parse(''), {}, `parse('')`);
@@ -273,5 +305,5 @@ describe('query strings', function () {
     assert.deepStrictEqual(parse('a[b][c][d]=e'), {a: {b: {c: {d: 'e'}}}}, `parse('a[b][c][d]=e')`);
     assert.deepStrictEqual(parse('a[b][]=c&a[b][]=d&a[b][2][]=f&a[b][2][]=g'), {a: {b: ['c', 'd', ['f', 'g']]}}, `parse('a[b][]=c&a[b][]=d&a[b][2][]=f&a[b][2][]=g')`);
     assert.deepStrictEqual(parse('a[0]=b'), {a: ['b']}, `parse('a[0]=b')`);
-  });
-});
+  }
+}

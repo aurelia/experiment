@@ -3,11 +3,11 @@ import {
   IContainer,
 } from '@aurelia/kernel';
 import {
+  FileEntry,
   joinPath,
   resolvePath,
-} from './path-utils';
+} from '@aurelia/runtime-node';
 import {
-  IFile,
   $CompilerOptions,
 } from './interfaces';
 
@@ -29,10 +29,10 @@ export class PatternMatcher {
     this.sources = Object.keys(compilerOptions.paths!).map(x => new PatternSource(this.logger, this, x));
   }
 
-  public findMatch(files: readonly IFile[], specifier: string): IFile {
+  public findMatch(files: readonly FileEntry[], specifier: string): FileEntry {
     const sources = this.sources;
     const len = sources.length;
-    let match: IFile | null;
+    let match: FileEntry | null;
 
     for (let i = 0; i < len; ++i) {
       match = sources[i].findMatch(files, specifier);
@@ -93,7 +93,7 @@ class PatternSource {
     this.targets = matcher.compilerOptions.paths![pattern].map(x => new PatternTarget(this.logger, this, x));
   }
 
-  public findMatch(files: readonly IFile[], specifier: string): IFile | null {
+  public findMatch(files: readonly FileEntry[], specifier: string): FileEntry | null {
     if (this.isWildcard) {
       return this.findMatchCore(files, specifier);
     }
@@ -113,11 +113,11 @@ class PatternSource {
     return null;
   }
 
-  private findMatchCore(files: readonly IFile[], specifier: string): IFile | null {
+  private findMatchCore(files: readonly FileEntry[], specifier: string): FileEntry | null {
     const targets = this.targets;
     const len = targets.length;
     let target: PatternTarget;
-    let match: IFile | null = null;
+    let match: FileEntry | null = null;
 
     for (let i = 0; i < len; ++i) {
       target = targets[i];
@@ -151,10 +151,10 @@ class PatternTarget {
     }
   }
 
-  public findMatch(files: readonly IFile[], specifier: string): IFile | null {
+  public findMatch(files: readonly FileEntry[], specifier: string): FileEntry | null {
     const targetPath = this.hasWildcard ? joinPath(this.patternPath, specifier) : this.patternPath;
     const len = files.length;
-    let file: IFile;
+    let file: FileEntry;
 
     for (let i = 0; i < len; ++i) {
       file = files[i];

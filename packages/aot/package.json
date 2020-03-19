@@ -41,6 +41,7 @@
     "@aurelia/runtime": "0.6.0",
     "@aurelia/runtime-html": "0.6.0",
     "@aurelia/runtime-html-jsdom": "0.6.0",
+    "@aurelia/runtime-node": "0.6.0",
     "@aurelia/jit": "0.6.0",
     "@aurelia/jit-html": "0.6.0",
     "@aurelia/jit-html-jsdom": "0.6.0",

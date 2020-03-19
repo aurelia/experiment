@@ -573,7 +573,7 @@ const createFactory = (function () {
       lookup = staticDependencies[i];
 
       if (lookup == null) {
-        throw Reporter.error(7, `Index ${i}.`);
+        throw Reporter.error(7, `Index ${i} for type ${Type.name}.`);
       } else {
         args[i] = container.get(lookup);
       }

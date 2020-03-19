@@ -825,6 +825,33 @@ export class $Object<
     return $Call(ctx, getter, Receiver, intrinsics.undefined);
   }
 
+  public getPropertyDescriptor(
+    this: $AnyObject,
+    ctx: ExecutionContext,
+    P: $PropertyKey,
+    Receiver: $AnyNonEmptyNonError,
+  ): $PropertyDescriptor {
+    const desc = this['[[GetOwnProperty]]'](ctx, P);
+    if (desc.isAbrupt) {
+      throw new Error(`Error on trying to resolve property descriptor ${String(P)}`);
+    }
+
+    if (desc.isUndefined) {
+      const parent = this['[[GetPrototypeOf]]'](ctx);
+      if (parent.isAbrupt) {
+        throw new Error(`Error on trying to retrieve prototype from object when trying to resolve property descriptor ${String(P)}`);
+      }
+
+      if (parent.isNull) {
+        throw new Error(`No binding with the name ${String(P)} exists`);
+      }
+
+      return parent.getPropertyDescriptor(ctx, P, Receiver);
+    }
+
+    return desc;
+  }
+
   // http://www.ecma-international.org/ecma-262/#sec-ordinary-object-internal-methods-and-internal-slots-set-p-v-receiver
   // 9.1.9 [[Set]] ( P , V , Receiver )
   public '[[Set]]'(

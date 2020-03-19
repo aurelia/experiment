@@ -1,5 +1,6 @@
 import { DI, LoggerConfiguration, LogLevel, ColorOptions, Registration } from '@aurelia/kernel';
-import { IFileSystem, FileKind, ServiceHost, $Undefined, $ESModule } from '@aurelia/aot';
+import { ServiceHost, $Undefined, $ESModule } from '@aurelia/aot';
+import { IFileSystem, FileKind, FileEntry } from '@aurelia/runtime-node';
 import { VirtualFileSystem } from './virtual-file-system';
 import { assert } from '@aurelia/testing';
 
@@ -14,31 +15,21 @@ describe.skip('AOT (smoke tests)', function () {
       Registration.singleton(IFileSystem, VirtualFileSystem),
     );
 
-    const host = new ServiceHost(container);
+    const host = container.get(ServiceHost);
 
-    const result = await host.executeSpecificFile({
-      shortName: '',
-      shortPath: '',
-      kind: FileKind.Script,
-      path: '',
-      dir: '',
-      rootlessPath: '',
-      name: '',
-      ext: '',
-      // eslint-disable-next-line @typescript-eslint/require-await
-      async getContent() {
-        return content;
-      },
-      getContentSync() {
-        return content;
-      },
-    }, 'module');
+    const result = await host.execute({
+      evaluate: true,
+      entries: [{
+        file: new FileEntry('test.js', void 0),
+        standalone: true,
+      }]
+    });
 
-    if (result.isAbrupt) {
+    if (result.result.isAbrupt) {
       assert.fail(`Evaluation error`);
     }
 
-    return ((result as $Undefined).sourceNode as $ESModule).ExecutionResult;
+    return ((result.result as $Undefined).sourceNode as $ESModule).ExecutionResult;
   }
 
   it('simple return statement with binary expression', async function () {

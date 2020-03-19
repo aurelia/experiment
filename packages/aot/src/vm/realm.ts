@@ -5,8 +5,8 @@ import {
   IDisposable,
 } from '@aurelia/kernel';
 import {
-  IFile,
-} from '../system/interfaces';
+  FileEntry,
+} from '@aurelia/runtime-node';
 import {
   Intrinsics,
 } from './intrinsics';
@@ -65,6 +65,7 @@ import {
 } from './ast/expressions';
 import {
   $$ESModuleOrScript,
+  ExportEntryRecord,
 } from './ast/modules';
 import {
   $GeneratorInstance,
@@ -75,6 +76,8 @@ import {
 import {
   $AsyncGeneratorInstance,
 } from './globals/async-generator-function';
+import { GlobalOptions } from './global-options';
+import { MaybePromise } from './util';
 
 export class ResolveSet {
   private readonly modules: IModule[] = [];
@@ -120,7 +123,8 @@ export class ResolvedBindingRecord {
 
   public constructor(
     public readonly Module: IModule,
-    public readonly BindingName: $String,
+    public readonly ExportEntry: ExportEntryRecord,
+    public readonly BindingName: $String = ExportEntry.LocalName as $String,
   ) { }
 }
 
@@ -137,11 +141,15 @@ export interface IModule extends IDisposable {
 
   readonly realm: Realm;
 
-  ResolveExport(ctx: ExecutionContext, exportName: $String, resolveSet: ResolveSet): ResolvedBindingRecord | $Null | $String<'ambiguous'> | $Error;
-  GetExportedNames(ctx: ExecutionContext, exportStarSet: Set<IModule>): $List<$String> | $Error;
-  Instantiate(ctx: ExecutionContext): $Undefined | $Error;
+  ResolveExport(
+    ctx: ExecutionContext,
+    exportName: $String,
+    resolveSet: ResolveSet,
+  ): MaybePromise<ResolvedBindingRecord | $Null | $String<'ambiguous'> | $Error>;
+  GetExportedNames(ctx: ExecutionContext, exportStarSet: Set<IModule>): Promise<$List<$String> | $Error>;
+  Instantiate(ctx: ExecutionContext): Promise<$Undefined | $Error>;
   /** @internal */
-  _InnerModuleInstantiation(ctx: ExecutionContext, stack: IModule[], index: $Number): $Number | $Error;
+  _InnerModuleInstantiation(ctx: ExecutionContext, stack: IModule[], index: $Number): Promise<$Number | $Error>;
 }
 
 export class DeferredModule implements IModule {
@@ -154,23 +162,23 @@ export class DeferredModule implements IModule {
   public get isAbrupt(): false { return false; }
 
   public constructor(
-    public readonly $file: IFile,
+    public readonly $file: FileEntry,
     public readonly realm: Realm,
   ) { }
 
-  public ResolveExport(ctx: ExecutionContext, exportName: $String, resolveSet: ResolveSet): ResolvedBindingRecord | $Null | $String<'ambiguous'> | $Error {
+  public ResolveExport(ctx: ExecutionContext, exportName: $String, resolveSet: ResolveSet): MaybePromise<ResolvedBindingRecord | $Null | $String<'ambiguous'> | $Error> {
     throw new Error('Method not implemented.');
   }
 
-  public GetExportedNames(ctx: ExecutionContext, exportStarSet: Set<IModule>): $List<$String> | $Error {
+  public async GetExportedNames(ctx: ExecutionContext, exportStarSet: Set<IModule>): Promise<$List<$String> | $Error> {
     throw new Error('Method not implemented.');
   }
 
-  public Instantiate(ctx: ExecutionContext): $Undefined | $Error {
+  public async Instantiate(ctx: ExecutionContext): Promise<$Undefined | $Error> {
     throw new Error('Method not implemented.');
   }
 
-  public _InnerModuleInstantiation(ctx: ExecutionContext, stack: IModule[], index: $Number): $Number | $Error {
+  public async _InnerModuleInstantiation(ctx: ExecutionContext, stack: IModule[], index: $Number): Promise<$Number | $Error> {
     throw new Error('Method not implemented.');
   }
 
@@ -181,7 +189,7 @@ export class DeferredModule implements IModule {
 
 // http://www.ecma-international.org/ecma-262/#sec-code-realms
 export class Realm implements IDisposable {
-  public timeout: number = 100;
+  public timeout: number = 300000;
   public contextId: number = 0;
 
   public readonly stack: ExecutionContextStack;
@@ -197,6 +205,7 @@ export class Realm implements IDisposable {
     public readonly container: IContainer,
     public readonly logger: ILogger,
     public readonly PromiseJobs: JobQueue,
+    public readonly options: GlobalOptions,
   ) {
 
     this.stack = new ExecutionContextStack(logger);
@@ -211,8 +220,10 @@ export class Realm implements IDisposable {
     const logger = container.get(ILogger).root.scopeTo('Realm');
     logger.debug('Creating new realm');
 
+    const options = container.get(GlobalOptions);
+
     // 1. Let realmRec be a new Realm Record.
-    const realm = new Realm(container, logger, promiseJobs);
+    const realm = new Realm(container, logger, promiseJobs, options);
 
     // 2. Perform CreateIntrinsics(realmRec).
     new Intrinsics(realm);

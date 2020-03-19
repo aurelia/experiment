@@ -457,7 +457,7 @@ export class $ArgSetter extends $BuiltinFunction {
     const env = this['[[Env]]'];
 
     // 4. Return env.SetMutableBinding(name, value, false).
-    return env.SetMutableBinding(ctx, name, value, intrinsics.false) as $AnyNonEmpty; // TODO: we probably need to change the signature of performSteps to return $Any but that may open a new can of worms, so leave it for now and revisit when we're further down the road and implemented more natives
+    return env.SetMutableBinding(ctx, name, value, intrinsics.false, null) as $AnyNonEmpty; // TODO: we probably need to change the signature of performSteps to return $Any but that may open a new can of worms, so leave it for now and revisit when we're further down the road and implemented more natives
   }
 }
 

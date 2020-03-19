@@ -1,16 +1,4 @@
 export {
-  NodeFileSystem,
-} from './system/file-system';
-export {
-  Encoding,
-  FileKind,
-  IFile,
-  IFileSystem,
-  IDirent,
-  IStats,
-} from './system/interfaces';
-
-export {
   CompletionTarget,
   AbruptCompletionType,
   PotentialEmptyCompletionType,
@@ -63,8 +51,15 @@ export {
 } from './vm/types/undefined';
 
 export {
-  ISourceFileProvider,
+  IAgent,
+  Agent,
 } from './vm/agent';
+export {
+  GlobalOptions,
+} from './vm/global-options';
+export {
+  Workspace,
+} from './vm/workspace';
 
 export {
   $ESModule,
@@ -74,10 +69,12 @@ export {
 } from './vm/ast/modules';
 export {
   I$Node,
+  TransformationContext,
 } from './vm/ast/_shared';
 
 export {
   Job,
+  JobQueue,
 } from './vm/job';
 
 export {
@@ -88,7 +85,5 @@ export {
 } from './vm/realm';
 
 export {
-  IModuleResolver,
-  IServiceHost,
   ServiceHost,
 } from './service-host';

@@ -38,6 +38,7 @@ import {
 } from '../ast/literals';
 import {
   I$Node,
+  $$ValueDeclaration,
 } from '../ast/_shared';
 
 // http://www.ecma-international.org/ecma-262/#sec-ecmascript-language-types-string-type
@@ -129,6 +130,8 @@ export class $String<T extends string = string> {
     this['[[Type]]'] = type;
     this['[[Target]]'] = target;
   }
+
+  public declaringNode: $$ValueDeclaration | null = null;
 
   public is(other: $AnyNonError): other is $String<T> {
     return other instanceof $String && this['[[Value]]'] === other['[[Value]]'];

@@ -17,15 +17,15 @@ import {
   bound,
 } from '@aurelia/kernel';
 import {
-  IFileSystem,
-  NodeFileSystem,
   ServiceHost,
-  IFile,
-  ExecutionContext,
-  $$ESModuleOrScript,
-  IServiceHost,
   $Any,
 } from '@aurelia/aot';
+import {
+  IFileSystem,
+  NodeFileSystem,
+  FileEntry,
+  Encoding,
+} from '@aurelia/runtime-node';
 import {
   resolve,
   join,
@@ -92,13 +92,13 @@ const excludedFeatures = [
 
 class TestCase implements IDisposable {
   public readonly meta: TestMetadata | null;
-  public readonly files: readonly IFile[];
+  public readonly files: readonly FileEntry[];
 
-  private _host: IServiceHost | null = null;
-  public get host(): IServiceHost {
+  private _host: ServiceHost | null = null;
+  public get host(): ServiceHost {
     let host = this._host;
     if (host === null) {
-      host = this._host = new ServiceHost(this.container);
+      host = this._host = this.container.get(ServiceHost);
     }
     return host;
   }
@@ -106,22 +106,20 @@ class TestCase implements IDisposable {
   public constructor(
     public readonly container: IContainer,
     public readonly logger: ILogger,
-    public readonly file: IFile,
-    public readonly prerequisites: readonly IFile[],
+    public readonly file: FileEntry,
+    public readonly prerequisites: readonly FileEntry[],
   ) {
-    this.meta = TestMetadata.from(file.getContentSync());
+    const fs = container.get(IFileSystem);
+    this.meta = TestMetadata.from(fs.readFileSync(file.path, Encoding.utf8));
     this.files = [...prerequisites, file];
   }
 
-  public async GetSourceFiles(ctx: ExecutionContext): Promise<readonly $$ESModuleOrScript[]> {
-    const host = this.host;
-    // eslint-disable-next-line @typescript-eslint/promise-function-async
-    return Promise.all(this.files.map(x => host.loadSpecificFile(ctx, x, 'script'))); // TODO: decide this based on meta
-  }
-
   // eslint-disable-next-line @typescript-eslint/promise-function-async
-  public run(): Promise<$Any> {
-    return this.host.executeProvider(this);
+  public async run(): Promise<$Any> {
+    return (await this.host.execute({
+      evaluate: true,
+      entries: this.files.map(x => ({ file: x, mode: 'script' })),
+    })).result;
   }
 
   public dispose(
@@ -140,7 +138,7 @@ class TestCase implements IDisposable {
   }
 }
 
-function compareFiles(a: IFile, b: IFile): number {
+function compareFiles(a: FileEntry, b: FileEntry): number {
   const aPath = a.path.toLowerCase();
   const bPath = b.path.toLowerCase();
   const aLen = aPath.length;
@@ -209,7 +207,7 @@ class TestReporter {
     const file = tc.file;
     let stats = dirs[file.dir];
     if (stats === void 0) {
-      stats = dirs[file.dir] = new TestStats(file.dir, file.rootlessPath.split('/').slice(0, -1).join('/'));
+      stats = dirs[file.dir] = new TestStats(file.dir, file.path.split('/').slice(0, -1).join('/'));
     }
     ++totals.total;
     ++stats.total;
@@ -330,7 +328,7 @@ class TestRunner {
 
     const now = PLATFORM.now();
 
-    const files: IFile[] = [
+    const files: FileEntry[] = [
       // ...(await fs.getFiles(join(languageDir, 'eval-code', 'indirect'), true)).filter(x => x.shortName.endsWith('realm'))
     ];
     for (const dir of [
@@ -394,33 +392,33 @@ class TestRunner {
               stack = result.stack;
               type = (result as unknown as { Type: string }).Type;
             }
-            logger.error(`${format.red('FAIL')} - ${tc.file.rootlessPath}\n  Expected no error, but got: ${type}: ${message}\n${stack}\n`);
+            logger.error(`${format.red('FAIL')} - ${tc.file.path}\n  Expected no error, but got: ${type}: ${message}\n${stack}\n`);
           } else {
             reporter.pass(tc);
 
-            logger.debug(`${format.green('PASS')} - ${tc.file.rootlessPath}`);
+            logger.debug(`${format.green('PASS')} - ${tc.file.path}`);
           }
         } else {
           if (result.isAbrupt) {
             if (result['[[Value]]'].name === tc.meta.negative.type) {
               reporter.pass(tc);
 
-              logger.debug(`${format.green('PASS')} - ${tc.file.rootlessPath}`);
+              logger.debug(`${format.green('PASS')} - ${tc.file.path}`);
             } else {
               reporter.fail(tc);
 
-              logger.error(`${format.red('FAIL')} - ${tc.file.rootlessPath} (expected error ${tc.meta.negative.type}, but got: ${result['[[Value]]'].name})`);
+              logger.error(`${format.red('FAIL')} - ${tc.file.path} (expected error ${tc.meta.negative.type}, but got: ${result['[[Value]]'].name})`);
             }
           } else {
             reporter.fail(tc);
 
-            logger.error(`${format.red('FAIL')} - ${tc.file.rootlessPath} (expected error ${tc.meta.negative.type}, but got none)`);
+            logger.error(`${format.red('FAIL')} - ${tc.file.path} (expected error ${tc.meta.negative.type}, but got none)`);
           }
         }
       } catch (err) {
         reporter.error(tc);
 
-        logger.fatal(`${format.red('Host error')}: ${err.message}\n${err.stack}\n\nTest file: ${tc.file.rootlessPath}\n${tc.meta?.negative?.phase}`);
+        logger.fatal(`${format.red('Host error')}: ${err.message}\n${err.stack}\n\nTest file: ${tc.file.path}\n${tc.meta?.negative?.phase}`);
       } finally {
         tc.dispose();
       }

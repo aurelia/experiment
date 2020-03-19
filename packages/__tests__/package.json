@@ -9,6 +9,7 @@
   "scripts": {
     "lint": "eslint --cache --ext .js,.ts .",
     "test-262": "node -r esm dist/esnext/__tests__/setup-test262.js",
+    "test-au": "node -r esm ../au/dist/esnext/index.js test --entryfile ./setup-au.ts --scratchdir ./dist/__au",
     "test-node": "cross-env NODE_ICU_DATA=../../node_modules/full-icu mocha --opts mocha.opts --reporter min --exit dist/esnext/__tests__/setup-node.js dist/esnext/__tests__/**/*.spec.js --exclude dist/esnext/__tests__/integration/**/*.spec.js",
     "test-node:aot": "mocha --opts mocha.opts dist/esnext/__tests__/setup-node.js dist/esnext/__tests__/aot/**/*.spec.js --exit",
     "test-node:aot:watch": "mocha --opts mocha.opts dist/esnext/__tests__/setup-node.js dist/esnext/__tests__/aot/**/*.spec.js --watch-extensions ts --watch",
@@ -53,6 +54,7 @@
     "@aurelia/runtime-html-browser": "0.6.0",
     "@aurelia/runtime-html-jsdom": "0.6.0",
     "@aurelia/runtime-html": "0.6.0",
+    "@aurelia/runtime-node": "0.6.0",
     "@aurelia/runtime": "0.6.0",
     "@aurelia/store": "0.6.0",
     "@aurelia/testing": "0.6.0",

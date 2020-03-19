@@ -1,1 +1,3 @@
-console.log('noop');
+import { cli } from './cli';
+
+cli.run(process.argv.slice(2));

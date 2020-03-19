@@ -33,6 +33,27 @@ import {
   TypeOfExpression,
   VoidExpression,
   YieldExpression,
+  createArrayLiteral,
+  createObjectLiteral,
+  createSpreadAssignment,
+  createAwait,
+  createPrefix,
+  createPostfix,
+  createVoid,
+  createTypeOf,
+  createDelete,
+  createParen,
+  createBinary,
+  createConditional,
+  createYield,
+  createTemplateExpression,
+  createTaggedTemplate,
+  createNew,
+  createCall,
+  createElementAccess,
+  createPropertyAccess,
+  createShorthandPropertyAssignment,
+  createPropertyAssignment,
 } from 'typescript';
 import {
   PLATFORM,
@@ -107,7 +128,6 @@ import {
 } from '../types/list';
 import {
   I$Node,
-  Context,
   modifiersToModifierFlags,
   hasBit,
   $identifier,
@@ -131,6 +151,9 @@ import {
   $$UpdateExpressionOrHigher,
   $UpdateExpressionNode,
   $i,
+  TransformationContext,
+  transformList,
+  HydrateContext,
 } from './_shared';
 import {
   $$ESModuleOrScript,
@@ -160,20 +183,44 @@ const {
 export class $Decorator implements I$Node {
   public get $kind(): SyntaxKind.Decorator { return SyntaxKind.Decorator; }
 
-  public readonly $expression: $$LHSExpressionOrHigher;
+  public $expression!: $$LHSExpressionOrHigher;
 
-  public constructor(
+  public parent!: $NodeWithDecorators;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: Decorator,
-    public readonly parent: $NodeWithDecorators,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.Decorator`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $LHSExpression(node.expression as $LHSExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.Decorator`;
+  }
+
+  public static create(
+    node: Decorator,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $Decorator {
+    const $node = new $Decorator(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $LHSExpression(node.expression as $LHSExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
   }
 }
 
@@ -184,31 +231,56 @@ export class $ThisExpression implements I$Node {
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $ThisExpression = this;
+  public CoveredParenthesizedExpression: $ThisExpression = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ThisExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ThisExpression`,
-  ) {}
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
+  ) {
+    this.path = `${path}${$i(idx)}.ThisExpression`;
+  }
+
+  public static create(
+    node: ThisExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ThisExpression {
+    const $node = new $ThisExpression(node, idx, depth, mos, realm, logger, path);
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
 
   // http://www.ecma-international.org/ecma-262/#sec-this-keyword-runtime-semantics-evaluation
   // 12.2.2.1 Runtime Semantics: Evaluation
@@ -230,17 +302,42 @@ export class $ThisExpression implements I$Node {
 export class $SuperExpression implements I$Node {
   public get $kind(): SyntaxKind.SuperKeyword { return SyntaxKind.SuperKeyword; }
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: SuperExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.SuperExpression`,
-  ) {}
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
+  ) {
+    this.path = `${path}${$i(idx)}.SuperExpression`;
+  }
+
+  public static create(
+    node: SuperExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $SuperExpression {
+    const $node = new $SuperExpression(node, idx, depth, mos, realm, logger, path);
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
+  }
 
   // http://www.ecma-international.org/ecma-262/#sec-super-keyword-runtime-semantics-evaluation
   // 12.3.5.1 Runtime Semantics: Evaluation
@@ -300,24 +397,30 @@ export type $$ArgumentOrArrayLiteralElement = (
 
 export function $argumentOrArrayLiteralElement(
   node: $ArgumentOrArrayLiteralElementNode,
-  parent: $NodeWithSpreadElements,
-  ctx: Context,
   idx: number,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): $$ArgumentOrArrayLiteralElement {
   switch (node.kind) {
     case SyntaxKind.SpreadElement:
-      return new $SpreadElement(node, parent, ctx, idx);
+      return $SpreadElement.create(node, idx, depth + 1, mos, realm, logger, path);
     case SyntaxKind.OmittedExpression:
-      return new $OmittedExpression(node, parent, ctx, idx);
+      return $OmittedExpression.create(node, idx, depth + 1, mos, realm, logger, path);
     default:
-      return $assignmentExpression(node, parent, ctx, idx);
+      return $assignmentExpression(node, idx, depth + 1, mos, realm, logger, path);
   }
 }
 
 export function $argumentOrArrayLiteralElementList(
   nodes: readonly $ArgumentOrArrayLiteralElementNode[] | undefined,
-  parent: $NodeWithSpreadElements,
-  ctx: Context,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): readonly $$ArgumentOrArrayLiteralElement[] {
   if (nodes === void 0 || nodes.length === 0) {
     return emptyArray;
@@ -326,7 +429,7 @@ export function $argumentOrArrayLiteralElementList(
   const len = nodes.length;
   const $nodes: $$ArgumentOrArrayLiteralElement[] = Array(len);
   for (let i = 0; i < len; ++i) {
-    $nodes[i] = $argumentOrArrayLiteralElement(nodes[i], parent, ctx, i);
+    $nodes[i] = $argumentOrArrayLiteralElement(nodes[i], i, depth + 1, mos, realm, logger, path);
   }
   return $nodes;
 }
@@ -334,36 +437,78 @@ export function $argumentOrArrayLiteralElementList(
 export class $ArrayLiteralExpression implements I$Node {
   public get $kind(): SyntaxKind.ArrayLiteralExpression { return SyntaxKind.ArrayLiteralExpression; }
 
-  public readonly $elements: readonly $$ArgumentOrArrayLiteralElement[];
+  public $elements!: readonly $$ArgumentOrArrayLiteralElement[];
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $ArrayLiteralExpression = this;
+  public CoveredParenthesizedExpression: $ArrayLiteralExpression = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ArrayLiteralExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ArrayLiteralExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$elements = $argumentOrArrayLiteralElementList(node.elements as NodeArray<$ArgumentOrArrayLiteralElementNode>, this, ctx);
+    this.path = `${path}${$i(idx)}.ArrayLiteralExpression`;
+  }
+
+  public static create(
+    node: ArrayLiteralExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ArrayLiteralExpression {
+    const $node = new $ArrayLiteralExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$elements = $argumentOrArrayLiteralElementList(node.elements as NodeArray<$ArgumentOrArrayLiteralElementNode>, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$elements.forEach(x => x.hydrate(ctx));
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    if (this.$elements.length === 0) {
+      return node;
+    }
+
+    const transformedList = transformList(tctx, this.$elements, node.elements);
+
+    if (transformedList === void 0) {
+      return node;
+    }
+
+    return createArrayLiteral(
+      transformedList,
+      true,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-runtime-semantics-arrayaccumulation
@@ -508,8 +653,11 @@ export type $$ObjectLiteralElementLike = (
 
 export function $$objectLiteralElementLikeList(
   nodes: readonly ObjectLiteralElementLike[],
-  parent: $ObjectLiteralExpression,
-  ctx: Context,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): readonly $$ObjectLiteralElementLike[] {
   if (nodes === void 0 || nodes.length === 0) {
     return emptyArray;
@@ -523,22 +671,22 @@ export function $$objectLiteralElementLikeList(
     el = nodes[i];
     switch (el.kind) {
       case SyntaxKind.PropertyAssignment:
-        $nodes[i] = new $PropertyAssignment(el, parent, ctx, i);
+        $nodes[i] = $PropertyAssignment.create(el, i, depth + 1, mos, realm, logger, path);
         break;
       case SyntaxKind.ShorthandPropertyAssignment:
-        $nodes[i] = new $ShorthandPropertyAssignment(el, parent, ctx, i);
+        $nodes[i] = $ShorthandPropertyAssignment.create(el, i, depth + 1, mos, realm, logger, path);
         break;
       case SyntaxKind.SpreadAssignment:
-        $nodes[i] = new $SpreadAssignment(el, parent, ctx, i);
+        $nodes[i] = $SpreadAssignment.create(el, i, depth + 1, mos, realm, logger, path);
         break;
       case SyntaxKind.MethodDeclaration:
-        $nodes[i] = new $MethodDeclaration(el, parent, ctx, i);
+        $nodes[i] = $MethodDeclaration.create(el, i, depth + 1, mos, realm, logger, path);
         break;
       case SyntaxKind.GetAccessor:
-        $nodes[i] = new $GetAccessorDeclaration(el, parent, ctx, i);
+        $nodes[i] = $GetAccessorDeclaration.create(el, i, depth + 1, mos, realm, logger, path);
         break;
       case SyntaxKind.SetAccessor:
-        $nodes[i] = new $SetAccessorDeclaration(el, parent, ctx, i);
+        $nodes[i] = $SetAccessorDeclaration.create(el, i, depth + 1, mos, realm, logger, path);
         break;
     }
   }
@@ -548,36 +696,78 @@ export function $$objectLiteralElementLikeList(
 export class $ObjectLiteralExpression implements I$Node {
   public get $kind(): SyntaxKind.ObjectLiteralExpression { return SyntaxKind.ObjectLiteralExpression; }
 
-  public readonly $properties: readonly $$ObjectLiteralElementLike[];
+  public $properties!: readonly $$ObjectLiteralElementLike[];
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $ObjectLiteralExpression = this;
+  public CoveredParenthesizedExpression: $ObjectLiteralExpression = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ObjectLiteralExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ObjectLiteralExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$properties = $$objectLiteralElementLikeList(node.properties, this, ctx);
+    this.path = `${path}${$i(idx)}.ObjectLiteralExpression`;
+  }
+
+  public static create(
+    node: ObjectLiteralExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ObjectLiteralExpression {
+    const $node = new $ObjectLiteralExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$properties = $$objectLiteralElementLikeList(node.properties, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$properties.forEach(x => x.hydrate(ctx));
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    if (this.$properties.length === 0) {
+      return node;
+    }
+
+    const transformedList = transformList(tctx, this.$properties, node.properties);
+
+    if (transformedList === void 0) {
+      return node;
+    }
+
+    return createObjectLiteral(
+      transformedList,
+      true,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-runtime-semantics-evaluation
@@ -613,32 +803,75 @@ export class $ObjectLiteralExpression implements I$Node {
 export class $PropertyAssignment implements I$Node {
   public get $kind(): SyntaxKind.PropertyAssignment { return SyntaxKind.PropertyAssignment; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $name: $$PropertyName;
-  public readonly $initializer: $$AssignmentExpressionOrHigher;
+  public $name!: $$PropertyName;
+  public $initializer!: $$AssignmentExpressionOrHigher;
 
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-static-semantics-propname
   // 12.2.6.5 Static Semantics: PropName
-  public readonly PropName: $String | $Empty;
+  public PropName!: $String | $Empty;
 
-  public constructor(
+  public parent!: $ObjectLiteralExpression;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: PropertyAssignment,
-    public readonly parent: $ObjectLiteralExpression,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.PropertyAssignment`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+    this.path = `${path}${$i(idx)}.PropertyAssignment`;
+  }
 
-    const $name = this.$name = $$propertyName(node.name, this, ctx | Context.IsMemberName, -1);
-    this.$initializer = $assignmentExpression(node.initializer as $AssignmentExpressionNode, this, ctx, -1);
+  public static create(
+    node: PropertyAssignment,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $PropertyAssignment {
+    const $node = new $PropertyAssignment(node, idx, depth, mos, realm, logger, path);
 
-    this.PropName = $name.PropName;
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
+
+    ($node.$name = $$propertyName(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$initializer = $assignmentExpression(node.initializer as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$name.hydrate(ctx);
+    this.$initializer.hydrate(ctx);
+
+    this.PropName = this.$name.PropName;
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const $name = this.$name.transform(tctx);
+    const $initializer = this.$initializer.transform(tctx);
+
+    if (
+      $name === node.name &&
+      $initializer === node.initializer
+    ) {
+      return node;
+    }
+
+    return createPropertyAssignment(
+      $name,
+      $initializer,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-runtime-semantics-propertydefinitionevaluation
@@ -691,32 +924,76 @@ export class $PropertyAssignment implements I$Node {
 export class $ShorthandPropertyAssignment implements I$Node {
   public get $kind(): SyntaxKind.ShorthandPropertyAssignment { return SyntaxKind.ShorthandPropertyAssignment; }
 
-  public readonly modifierFlags: ModifierFlags;
+  public modifierFlags!: ModifierFlags;
 
-  public readonly $name: $Identifier;
-  public readonly $objectAssignmentInitializer: $$AssignmentExpressionOrHigher | undefined;
+  public $name!: $Identifier;
+  public $objectAssignmentInitializer!: $$AssignmentExpressionOrHigher | undefined;
 
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-static-semantics-propname
   // 12.2.6.5 Static Semantics: PropName
-  public readonly PropName: $String;
+  public PropName!: $String;
 
-  public constructor(
+  public parent!: $ObjectLiteralExpression;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ShorthandPropertyAssignment,
-    public readonly parent: $ObjectLiteralExpression,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ShorthandPropertyAssignment`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.modifierFlags = modifiersToModifierFlags(node.modifiers);
+    this.path = `${path}${$i(idx)}.ShorthandPropertyAssignment`;
+  }
 
-    const $name = this.$name = $identifier(node.name, this, ctx, -1);
-    this.$objectAssignmentInitializer = $assignmentExpression(node.objectAssignmentInitializer as $AssignmentExpressionNode, this, ctx, -1);
+  public static create(
+    node: ShorthandPropertyAssignment,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ShorthandPropertyAssignment {
+    const $node = new $ShorthandPropertyAssignment(node, idx, depth, mos, realm, logger, path);
 
-    this.PropName = $name.PropName;
+    $node.modifierFlags = modifiersToModifierFlags(node.modifiers);
+
+    ($node.$name = $identifier(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    const $objectAssignmentInitializer = $node.$objectAssignmentInitializer = $assignmentExpression(node.objectAssignmentInitializer as $AssignmentExpressionNode | undefined, -1, depth + 1, mos, realm, logger, path);
+    if ($objectAssignmentInitializer !== void 0) { $objectAssignmentInitializer.parent = $node; }
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$name.hydrate(ctx);
+    this.$objectAssignmentInitializer?.hydrate(ctx);
+
+    this.PropName = this.$name.PropName;
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const $name = this.$name.transform(tctx);
+    const $objectAssignmentInitializer = this.$objectAssignmentInitializer === void 0 ? void 0 : this.$objectAssignmentInitializer.transform(tctx);
+
+    if (
+      $name === node.name &&
+      $objectAssignmentInitializer === node.objectAssignmentInitializer
+    ) {
+      return node;
+    }
+
+    return createShorthandPropertyAssignment(
+      $name,
+      $objectAssignmentInitializer,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-runtime-semantics-propertydefinitionevaluation
@@ -751,24 +1028,60 @@ export class $ShorthandPropertyAssignment implements I$Node {
 export class $SpreadAssignment implements I$Node {
   public get $kind(): SyntaxKind.SpreadAssignment { return SyntaxKind.SpreadAssignment; }
 
-  public readonly $expression: $$AssignmentExpressionOrHigher;
+  public $expression!: $$AssignmentExpressionOrHigher;
 
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-static-semantics-propname
   // 12.2.6.5 Static Semantics: PropName
-  public readonly PropName: empty = empty;
+  public PropName: empty = empty;
 
-  public constructor(
+  public parent!: $ObjectLiteralExpression;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: SpreadAssignment,
-    public readonly parent: $ObjectLiteralExpression,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.SpreadAssignment`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.SpreadAssignment`;
+  }
+
+  public static create(
+    node: SpreadAssignment,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $SpreadAssignment {
+    const $node = new $SpreadAssignment(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$expression.transform(tctx);
+    if (transformed === node.expression) {
+      return node;
+    }
+
+    return createSpreadAssignment(
+      transformed,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-runtime-semantics-propertydefinitionevaluation
@@ -801,22 +1114,62 @@ export class $SpreadAssignment implements I$Node {
 export class $PropertyAccessExpression implements I$Node {
   public get $kind(): SyntaxKind.PropertyAccessExpression { return SyntaxKind.PropertyAccessExpression; }
 
-  public readonly $expression: $$LHSExpressionOrHigher;
-  public readonly $name: $Identifier;
+  public $expression!: $$LHSExpressionOrHigher;
+  public $name!: $Identifier;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: PropertyAccessExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.PropertyAccessExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $LHSExpression(node.expression as $LHSExpressionNode, this, ctx, -1);
-    this.$name = $identifier(node.name, this, ctx | Context.IsPropertyAccessName, -1);
+    this.path = `${path}${$i(idx)}.PropertyAccessExpression`;
+  }
+
+  public static create(
+    node: PropertyAccessExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $PropertyAccessExpression {
+    const $node = new $PropertyAccessExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $LHSExpression(node.expression as $LHSExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$name = $identifier(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$name.hydrate(ctx);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$expression.transform(tctx);
+    if (
+      node.expression === transformed
+    ) {
+      return node;
+    }
+
+    return createPropertyAccess(
+      transformed,
+      node.name,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-property-accessors-runtime-semantics-evaluation
@@ -856,22 +1209,64 @@ export class $PropertyAccessExpression implements I$Node {
 export class $ElementAccessExpression implements I$Node {
   public get $kind(): SyntaxKind.ElementAccessExpression { return SyntaxKind.ElementAccessExpression; }
 
-  public readonly $expression: $$LHSExpressionOrHigher;
-  public readonly $argumentExpression: $$AssignmentExpressionOrHigher;
+  public $expression!: $$LHSExpressionOrHigher;
+  public $argumentExpression!: $$AssignmentExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ElementAccessExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ElementAccessExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $LHSExpression(node.expression as $LHSExpressionNode, this, ctx, -1);
-    this.$argumentExpression = $assignmentExpression(node.argumentExpression as $AssignmentExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.ElementAccessExpression`;
+  }
+
+  public static create(
+    node: ElementAccessExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ElementAccessExpression {
+    const $node = new $ElementAccessExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $LHSExpression(node.expression as $LHSExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$argumentExpression = $assignmentExpression(node.argumentExpression as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+    this.$argumentExpression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedExpression = this.$expression.transform(tctx);
+    const transformedArgumentExpression = this.$argumentExpression.transform(tctx);
+    if (
+      node.expression === transformedExpression &&
+      node.argumentExpression === transformedArgumentExpression
+    ) {
+      return node;
+    }
+
+    return createElementAccess(
+      transformedExpression,
+      transformedArgumentExpression,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-property-accessors-runtime-semantics-evaluation
@@ -919,22 +1314,68 @@ export class $ElementAccessExpression implements I$Node {
 export class $CallExpression implements I$Node {
   public get $kind(): SyntaxKind.CallExpression { return SyntaxKind.CallExpression; }
 
-  public readonly $expression: $$LHSExpressionOrHigher;
-  public readonly $arguments: readonly $$ArgumentOrArrayLiteralElement[];
+  public $expression!: $$LHSExpressionOrHigher;
+  public $arguments!: readonly $$ArgumentOrArrayLiteralElement[];
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: CallExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.CallExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $LHSExpression(node.expression as $LHSExpressionNode, this, ctx, -1);
-    this.$arguments = $argumentOrArrayLiteralElementList(node.arguments as NodeArray<$ArgumentOrArrayLiteralElementNode>, this, ctx);
+    this.path = `${path}${$i(idx)}.CallExpression`;
+  }
+
+  public static create(
+    node: CallExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $CallExpression {
+    const $node = new $CallExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $LHSExpression(node.expression as $LHSExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$arguments = $argumentOrArrayLiteralElementList(node.arguments as NodeArray<$ArgumentOrArrayLiteralElementNode>, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$arguments.forEach(x => x.hydrate(ctx));
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedExpression = this.$expression.transform(tctx);
+    const transformedArguments = transformList(tctx, this.$arguments, node.arguments);
+    if (
+      node.expression === transformedExpression &&
+      transformedArguments === void 0 &&
+      node.typeArguments === void 0
+    ) {
+      return node;
+    }
+
+    return createCall(
+      transformedExpression,
+      void 0,
+      transformedArguments === void 0
+        ? node.arguments
+        : transformedArguments,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-function-calls-runtime-semantics-evaluation
@@ -1133,22 +1574,70 @@ export function $ArgumentListEvaluation(
 export class $NewExpression implements I$Node {
   public get $kind(): SyntaxKind.NewExpression { return SyntaxKind.NewExpression; }
 
-  public readonly $expression: $$LHSExpressionOrHigher;
-  public readonly $arguments: readonly $$ArgumentOrArrayLiteralElement[];
+  public $expression!: $$LHSExpressionOrHigher;
+  public $arguments!: readonly $$ArgumentOrArrayLiteralElement[];
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: NewExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.NewExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $LHSExpression(node.expression as $LHSExpressionNode, this, ctx, -1);
-    this.$arguments = $argumentOrArrayLiteralElementList(node.arguments as NodeArray<$ArgumentOrArrayLiteralElementNode>, this, ctx);
+    this.path = `${path}${$i(idx)}.NewExpression`;
+  }
+
+  public static create(
+    node: NewExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NewExpression {
+    const $node = new $NewExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $LHSExpression(node.expression as $LHSExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$arguments = $argumentOrArrayLiteralElementList(node.arguments as NodeArray<$ArgumentOrArrayLiteralElementNode>, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$arguments.forEach(x => x.hydrate(ctx));
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedExpression = this.$expression.transform(tctx);
+    const transformedArguments = node.arguments === void 0 ? void 0 : transformList(tctx, this.$arguments, node.arguments);
+    if (
+      node.expression === transformedExpression &&
+      transformedArguments === void 0 &&
+      node.typeArguments === void 0
+    ) {
+      return node;
+    }
+
+    return createNew(
+      transformedExpression,
+      void 0,
+      node.arguments === void 0
+        ? void 0
+        : transformedArguments === void 0
+          ? node.arguments
+          : transformedArguments,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-new-operator-runtime-semantics-evaluation
@@ -1213,27 +1702,70 @@ export type $$TemplateLiteral = (
 export class $TaggedTemplateExpression implements I$Node {
   public get $kind(): SyntaxKind.TaggedTemplateExpression { return SyntaxKind.TaggedTemplateExpression; }
 
-  public readonly $tag: $$LHSExpressionOrHigher;
-  public readonly $template: $$TemplateLiteral;
+  public $tag!: $$LHSExpressionOrHigher;
+  public $template!: $$TemplateLiteral;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: TaggedTemplateExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.TaggedTemplateExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$tag = $LHSExpression(node.tag as $LHSExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.TaggedTemplateExpression`;
+  }
+
+  public static create(
+    node: TaggedTemplateExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $TaggedTemplateExpression {
+    const $node = new $TaggedTemplateExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$tag = $LHSExpression(node.tag as $LHSExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
 
     if (node.template.kind === SyntaxKind.NoSubstitutionTemplateLiteral) {
-      this.$template = new $NoSubstitutionTemplateLiteral(node.template, this, ctx, -1);
+      ($node.$template = $NoSubstitutionTemplateLiteral.create(node.template, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     } else {
-      this.$template = new $TemplateExpression(node.template, this, ctx, -1);
+      ($node.$template = $TemplateExpression.create(node.template, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     }
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$tag.hydrate(ctx);
+    this.$template.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const transformedTag = this.$tag.transform(tctx);
+    const transformedTemplate = this.$template.transform(tctx);
+
+    const node = this.node;
+    if (
+      node.tag === transformedTag &&
+      node.template === transformedTemplate
+    ) {
+      return node;
+    }
+
+    return createTaggedTemplate(
+      transformedTag,
+      transformedTemplate,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-tagged-templates-runtime-semantics-evaluation
@@ -1269,8 +1801,11 @@ export class $TaggedTemplateExpression implements I$Node {
 
 export function $$templateSpanList(
   nodes: readonly TemplateSpan[],
-  parent: $TemplateExpression,
-  ctx: Context,
+  depth: number,
+  mos: $$ESModuleOrScript,
+  realm: Realm,
+  logger: ILogger,
+  path: string,
 ): readonly $TemplateSpan[] {
   if (nodes.length === 0) {
     return emptyArray;
@@ -1279,7 +1814,7 @@ export function $$templateSpanList(
   const len = nodes.length;
   const $nodes: $TemplateSpan[] = Array(len);
   for (let i = 0; i < len; ++i) {
-    $nodes[i] = new $TemplateSpan(nodes[i], parent, ctx, i);
+    $nodes[i] = $TemplateSpan.create(nodes[i], i, depth + 1, mos, realm, logger, path);
   }
   return $nodes;
 }
@@ -1287,38 +1822,80 @@ export function $$templateSpanList(
 export class $TemplateExpression implements I$Node {
   public get $kind(): SyntaxKind.TemplateExpression { return SyntaxKind.TemplateExpression; }
 
-  public readonly $head: $TemplateHead;
-  public readonly $templateSpans: readonly $TemplateSpan[];
+  public $head!: $TemplateHead;
+  public $templateSpans!: readonly $TemplateSpan[];
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $TemplateExpression = this;
+  public CoveredParenthesizedExpression: $TemplateExpression = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: false = false;
+  public IsIdentifierRef: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-assignmenttargettype
   // 12.2.1.5 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'invalid' = 'invalid';
+  public AssignmentTargetType: 'invalid' = 'invalid';
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: TemplateExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.TemplateExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$head = new $TemplateHead(node.head, this, ctx);
-    this.$templateSpans = $$templateSpanList(node.templateSpans, this, ctx);
+    this.path = `${path}${$i(idx)}.TemplateExpression`;
+  }
+
+  public static create(
+    node: TemplateExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $TemplateExpression {
+    const $node = new $TemplateExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$head = $TemplateHead.create(node.head, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$templateSpans = $$templateSpanList(node.templateSpans, depth + 1, mos, realm, logger, path)).forEach(x => x.parent = $node);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$head.hydrate(ctx);
+    this.$templateSpans.forEach(x => x.hydrate(ctx));
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedHead = this.$head.transform(tctx);
+    const transformedTemplateSpans = transformList(tctx, this.$templateSpans, node.templateSpans);
+    if (
+      node.head === transformedHead &&
+      transformedTemplateSpans === void 0
+    ) {
+      return node;
+    }
+
+    return createTemplateExpression(
+      transformedHead,
+      transformedTemplateSpans!,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-template-literals-runtime-semantics-evaluation
@@ -1377,26 +1954,64 @@ export class $TemplateExpression implements I$Node {
 export class $ParenthesizedExpression implements I$Node {
   public get $kind(): SyntaxKind.ParenthesizedExpression { return SyntaxKind.ParenthesizedExpression; }
 
-  public readonly $expression: $$AssignmentExpressionOrHigher;
+  public $expression!: $$AssignmentExpressionOrHigher;
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $$AssignmentExpressionOrHigher;
+  public CoveredParenthesizedExpression!: $$AssignmentExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ParenthesizedExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ParenthesizedExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const $expression = this.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.ParenthesizedExpression`;
+  }
 
-    this.CoveredParenthesizedExpression = $expression;
+  public static create(
+    node: ParenthesizedExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ParenthesizedExpression {
+    const $node = new $ParenthesizedExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    this.CoveredParenthesizedExpression = this.$expression;
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): $$AssignmentExpressionOrHigher['node'] {
+    const node = this.node;
+    const transformed = this.$expression.transform(tctx);
+    if (transformed === node.expression) {
+      return node;
+    }
+    if (transformed.kind === SyntaxKind.Identifier) {
+      return transformed;
+    }
+    return createParen(
+      transformed,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-grouping-operator-runtime-semantics-evaluation
@@ -1424,20 +2039,48 @@ export class $ParenthesizedExpression implements I$Node {
 export class $NonNullExpression implements I$Node {
   public get $kind(): SyntaxKind.NonNullExpression { return SyntaxKind.NonNullExpression; }
 
-  public readonly $expression: $$LHSExpressionOrHigher;
+  public $expression!: $$LHSExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: NonNullExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.NonNullExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $LHSExpression(node.expression as $LHSExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.NonNullExpression`;
+  }
+
+  public static create(
+    node: NonNullExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $NonNullExpression {
+    const $node = new $NonNullExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $LHSExpression(node.expression as $LHSExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): $$LHSExpressionOrHigher['node'] {
+    return this.$expression.transform(tctx) as $$LHSExpressionOrHigher['node']; // TODO(fkleuver): fix typing
   }
 
   // This is a TS expression that wraps an ordinary expression. Just return the evaluate result.
@@ -1453,20 +2096,48 @@ export class $NonNullExpression implements I$Node {
 export class $MetaProperty implements I$Node {
   public get $kind(): SyntaxKind.MetaProperty { return SyntaxKind.MetaProperty; }
 
-  public readonly $name: $Identifier;
+  public $name!: $Identifier;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: MetaProperty,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.MetaProperty`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$name = $identifier(node.name, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.MetaProperty`;
+  }
+
+  public static create(
+    node: MetaProperty,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $MetaProperty {
+    const $node = new $MetaProperty(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$name = $identifier(node.name, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$name.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-meta-properties-runtime-semantics-evaluation
@@ -1495,20 +2166,55 @@ export class $MetaProperty implements I$Node {
 export class $DeleteExpression implements I$Node {
   public get $kind(): SyntaxKind.DeleteExpression { return SyntaxKind.DeleteExpression; }
 
-  public readonly $expression: $$UnaryExpressionOrHigher;
+  public $expression!: $$UnaryExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: DeleteExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.DeleteExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $unaryExpression(node.expression as $UnaryExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.DeleteExpression`;
+  }
+
+  public static create(
+    node: DeleteExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $DeleteExpression {
+    const $node = new $DeleteExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $unaryExpression(node.expression as $UnaryExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$expression.transform(tctx);
+    if (transformed === node.expression) {
+      return node;
+    }
+    return createDelete(
+      transformed,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-delete-operator-runtime-semantics-evaluation
@@ -1545,20 +2251,55 @@ export class $DeleteExpression implements I$Node {
 export class $TypeOfExpression implements I$Node {
   public get $kind(): SyntaxKind.TypeOfExpression { return SyntaxKind.TypeOfExpression; }
 
-  public readonly $expression: $$UnaryExpressionOrHigher;
+  public $expression!: $$UnaryExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: TypeOfExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.TypeOfExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $unaryExpression(node.expression as $UnaryExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.TypeOfExpression`;
+  }
+
+  public static create(
+    node: TypeOfExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $TypeOfExpression {
+    const $node = new $TypeOfExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $unaryExpression(node.expression as $UnaryExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$expression.transform(tctx);
+    if (transformed === node.expression) {
+      return node;
+    }
+    return createTypeOf(
+      transformed,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-typeof-operator-runtime-semantics-evaluation
@@ -1629,20 +2370,55 @@ export class $TypeOfExpression implements I$Node {
 export class $VoidExpression implements I$Node {
   public get $kind(): SyntaxKind.VoidExpression { return SyntaxKind.VoidExpression; }
 
-  public readonly $expression: $$UnaryExpressionOrHigher;
+  public $expression!: $$UnaryExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: VoidExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.VoidExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $unaryExpression(node.expression as $UnaryExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.VoidExpression`;
+  }
+
+  public static create(
+    node: VoidExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $VoidExpression {
+    const $node = new $VoidExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $unaryExpression(node.expression as $UnaryExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$expression.transform(tctx);
+    if (transformed === node.expression) {
+      return node;
+    }
+    return createVoid(
+      transformed,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-void-operator
@@ -1673,20 +2449,55 @@ export class $VoidExpression implements I$Node {
 export class $AwaitExpression implements I$Node {
   public get $kind(): SyntaxKind.AwaitExpression { return SyntaxKind.AwaitExpression; }
 
-  public readonly $expression: $$UnaryExpressionOrHigher;
+  public $expression!: $$UnaryExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: AwaitExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.AwaitExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $unaryExpression(node.expression as $UnaryExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.AwaitExpression`;
+  }
+
+  public static create(
+    node: AwaitExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $AwaitExpression {
+    const $node = new $AwaitExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $unaryExpression(node.expression as $UnaryExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$expression.transform(tctx);
+    if (transformed === node.expression) {
+      return node;
+    }
+    return createAwait(
+      transformed,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-async-function-definitions-runtime-semantics-evaluation
@@ -1713,20 +2524,56 @@ export class $AwaitExpression implements I$Node {
 export class $PrefixUnaryExpression implements I$Node {
   public get $kind(): SyntaxKind.PrefixUnaryExpression { return SyntaxKind.PrefixUnaryExpression; }
 
-  public readonly $operand: $$UnaryExpressionOrHigher;
+  public $operand!: $$UnaryExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: PrefixUnaryExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.PrefixUnaryExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$operand = $unaryExpression(node.operand as $UnaryExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.PrefixUnaryExpression`;
+  }
+
+  public static create(
+    node: PrefixUnaryExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $PrefixUnaryExpression {
+    const $node = new $PrefixUnaryExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$operand = $unaryExpression(node.operand as $UnaryExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$operand.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$operand.transform(tctx);
+    if (transformed === node.operand) {
+      return node;
+    }
+    return createPrefix(
+      node.operator,
+      transformed,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-prefix-increment-operator-runtime-semantics-evaluation
@@ -1771,7 +2618,7 @@ export class $PrefixUnaryExpression implements I$Node {
         if (!(expr instanceof $Reference)) {
           return new $ReferenceError(realm, `Value is not assignable: ${expr}`).enrichWith(ctx, this);
         }
-        const $PutValueResult = expr.PutValue(ctx, newValue);
+        const $PutValueResult = expr.PutValue(ctx, newValue, null);
         if ($PutValueResult.isAbrupt) { return $PutValueResult.enrichWith(ctx, this); }
 
         // 5. Return newValue.
@@ -1800,7 +2647,7 @@ export class $PrefixUnaryExpression implements I$Node {
         if (!(expr instanceof $Reference)) {
           return new $ReferenceError(realm, `Value is not assignable: ${expr}`).enrichWith(ctx, this);
         }
-        const $PutValueResult = expr.PutValue(ctx, newValue);
+        const $PutValueResult = expr.PutValue(ctx, newValue, null);
         if ($PutValueResult.isAbrupt) { return $PutValueResult.enrichWith(ctx, this); }
 
         // 5. Return newValue.
@@ -1897,20 +2744,56 @@ export class $PrefixUnaryExpression implements I$Node {
 export class $PostfixUnaryExpression implements I$Node {
   public get $kind(): SyntaxKind.PostfixUnaryExpression { return SyntaxKind.PostfixUnaryExpression; }
 
-  public readonly $operand: $$LHSExpressionOrHigher;
+  public $operand!: $$LHSExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: PostfixUnaryExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.PostfixUnaryExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$operand = $LHSExpression(node.operand as $LHSExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.PostfixUnaryExpression`;
+  }
+
+  public static create(
+    node: PostfixUnaryExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $PostfixUnaryExpression {
+    const $node = new $PostfixUnaryExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$operand = $LHSExpression(node.operand as $LHSExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$operand.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$operand.transform(tctx);
+    if (transformed === node.operand) {
+      return node;
+    }
+    return createPostfix(
+      transformed,
+      node.operator,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-postfix-increment-operator-runtime-semantics-evaluation
@@ -1950,7 +2833,7 @@ export class $PostfixUnaryExpression implements I$Node {
         if (!(lhs instanceof $Reference)) {
           return new $ReferenceError(realm, `Value is not assignable: ${lhs}`).enrichWith(ctx, this);
         }
-        const $PutValueResult = lhs.PutValue(ctx, newValue);
+        const $PutValueResult = lhs.PutValue(ctx, newValue, null);
         if ($PutValueResult.isAbrupt) { return $PutValueResult.enrichWith(ctx, this); }
 
         // 5. Return oldValue.
@@ -1978,7 +2861,7 @@ export class $PostfixUnaryExpression implements I$Node {
         if (!(lhs instanceof $Reference)) {
           return new $ReferenceError(realm, `Value is not assignable: ${lhs}`).enrichWith(ctx, this);
         }
-        const $PutValueResult = lhs.PutValue(ctx, newValue);
+        const $PutValueResult = lhs.PutValue(ctx, newValue, null);
         if ($PutValueResult.isAbrupt) { return $PutValueResult.enrichWith(ctx, this); }
 
         // 5. Return oldValue.
@@ -1991,20 +2874,48 @@ export class $PostfixUnaryExpression implements I$Node {
 export class $TypeAssertion implements I$Node {
   public get $kind(): SyntaxKind.TypeAssertionExpression { return SyntaxKind.TypeAssertionExpression; }
 
-  public readonly $expression: $$AssignmentExpressionOrHigher;
+  public $expression!: $$AssignmentExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: TypeAssertion,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.TypeAssertion`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.TypeAssertion`;
+  }
+
+  public static create(
+    node: TypeAssertion,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $TypeAssertion {
+    const $node = new $TypeAssertion(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): $$AssignmentExpressionOrHigher['node'] {
+    return this.$expression.transform(tctx);
   }
 
   // This is a TS expression that wraps an ordinary expression. Just return the evaluate result.
@@ -2024,22 +2935,65 @@ export class $TypeAssertion implements I$Node {
 export class $BinaryExpression implements I$Node {
   public get $kind(): SyntaxKind.BinaryExpression { return SyntaxKind.BinaryExpression; }
 
-  public readonly $left: $$BinaryExpressionOrHigher;
-  public readonly $right: $$BinaryExpressionOrHigher;
+  public $left!: $$BinaryExpressionOrHigher;
+  public $right!: $$BinaryExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: BinaryExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.BinaryExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$left = $assignmentExpression(node.left as $BinaryExpressionNode, this, ctx, -1) as $$BinaryExpressionOrHigher;
-    this.$right = $assignmentExpression(node.right as $BinaryExpressionNode, this, ctx, -1) as $$BinaryExpressionOrHigher;
+    this.path = `${path}${$i(idx)}.BinaryExpression`;
+  }
+
+  public static create(
+    node: BinaryExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $BinaryExpression {
+    const $node = new $BinaryExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$left = $assignmentExpression(node.left as $BinaryExpressionNode, -1, depth + 1, mos, realm, logger, path) as $$BinaryExpressionOrHigher).parent = $node;
+    ($node.$right = $assignmentExpression(node.right as $BinaryExpressionNode, -1, depth + 1, mos, realm, logger, path) as $$BinaryExpressionOrHigher).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$left.hydrate(ctx);
+    this.$right.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedLeft = this.$left.transform(tctx);
+    const transformedRight = this.$right.transform(tctx);
+    if (
+      node.left === transformedLeft &&
+      node.right === transformedRight
+    ) {
+      return node;
+    }
+
+    return createBinary(
+      transformedLeft,
+      node.operatorToken,
+      transformedRight,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-exp-operator-runtime-semantics-evaluation
@@ -2804,7 +3758,7 @@ export class $BinaryExpression implements I$Node {
           if (!(lref instanceof $Reference)) {
             return new $ReferenceError(realm, `Value is not assignable: ${lref}`).enrichWith(ctx, this);
           }
-          const $PutValueResult = lref.PutValue(ctx, rval);
+          const $PutValueResult = lref.PutValue(ctx, rval, null);
           if ($PutValueResult.isAbrupt) { return $PutValueResult.enrichWith(ctx, this); }
 
           // 1. f. Return rval.
@@ -3080,7 +4034,7 @@ export class $BinaryExpression implements I$Node {
         if (!(lref instanceof $Reference)) {
           return new $ReferenceError(realm, `Value is not assignable: ${lref}`).enrichWith(ctx, this);
         }
-        const $PutValueResult = lref.PutValue(ctx, r);
+        const $PutValueResult = lref.PutValue(ctx, r, null);
         if ($PutValueResult.isAbrupt) { return $PutValueResult.enrichWith(ctx, this); }
 
         // 8. Return r.
@@ -3093,29 +4047,75 @@ export class $BinaryExpression implements I$Node {
 export class $ConditionalExpression implements I$Node {
   public get $kind(): SyntaxKind.ConditionalExpression { return SyntaxKind.ConditionalExpression; }
 
-  public readonly $condition: $$BinaryExpressionOrHigher;
-  public readonly $whenTrue: $$AssignmentExpressionOrHigher;
-  public readonly $whenFalse: $$AssignmentExpressionOrHigher;
+  public $condition!: $$BinaryExpressionOrHigher;
+  public $whenTrue!: $$AssignmentExpressionOrHigher;
+  public $whenFalse!: $$AssignmentExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: ConditionalExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.ConditionalExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
+    this.path = `${path}${$i(idx)}.ConditionalExpression`;
+  }
+
+  public static create(
+    node: ConditionalExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $ConditionalExpression {
+    const $node = new $ConditionalExpression(node, idx, depth, mos, realm, logger, path);
+
     if (node.condition.kind === SyntaxKind.BinaryExpression) {
-      this.$condition = new $BinaryExpression(node.condition as BinaryExpression, this, ctx, -1);
+      ($node.$condition = $BinaryExpression.create(node.condition as BinaryExpression, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     } else {
-      this.$condition = $unaryExpression(node.condition as $UnaryExpressionNode, this, ctx, -1);
+      ($node.$condition = $unaryExpression(node.condition as $UnaryExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
     }
 
-    this.$whenTrue = $assignmentExpression(node.whenTrue as $AssignmentExpressionNode, this, ctx, -1);
-    this.$whenFalse = $assignmentExpression(node.whenFalse as $AssignmentExpressionNode, this, ctx, -1);
+    ($node.$whenTrue = $assignmentExpression(node.whenTrue as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+    ($node.$whenFalse = $assignmentExpression(node.whenFalse as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$condition.hydrate(ctx);
+    this.$whenTrue.hydrate(ctx);
+    this.$whenFalse.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformedCondition = this.$condition.transform(tctx);
+    const transformedWhenTrue = this.$whenTrue.transform(tctx);
+    const transformedWhenFalse = this.$whenFalse.transform(tctx);
+    if (
+      node.condition === transformedCondition &&
+      node.whenTrue === transformedWhenTrue &&
+      node.whenFalse === transformedWhenFalse
+    ) {
+      return node;
+    }
+
+    return createConditional(
+      transformedCondition,
+      transformedWhenTrue,
+      transformedWhenFalse,
+    );
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-conditional-operator-runtime-semantics-evaluation
@@ -3147,21 +4147,57 @@ export class $ConditionalExpression implements I$Node {
 export class $YieldExpression implements I$Node {
   public get $kind(): SyntaxKind.YieldExpression { return SyntaxKind.YieldExpression; }
 
-  public readonly $expression: $$AssignmentExpressionOrHigher;
+  public $expression!: $$AssignmentExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: YieldExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.YieldExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, this, ctx, -1);
+    this.path = `${path}${$i(idx)}.YieldExpression`;
   }
+
+  public static create(
+    node: YieldExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $YieldExpression {
+    const $node = new $YieldExpression(node, idx, depth, mos, realm, logger, path);
+
+    ($node.$expression = $assignmentExpression(node.expression as $AssignmentExpressionNode, -1, depth + 1, mos, realm, logger, path)).parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    const node = this.node;
+    const transformed = this.$expression.transform(tctx);
+    if (transformed === node.expression) {
+      return node;
+    }
+    return createYield(
+      transformed,
+    );
+  }
+
   // http://www.ecma-international.org/ecma-262/#sec-generator-function-definitions-runtime-semantics-evaluation
   // 14.4.14 Runtime Semantics: Evaluation
   public Evaluate(
@@ -3247,20 +4283,49 @@ export class $YieldExpression implements I$Node {
 export class $AsExpression implements I$Node {
   public get $kind(): SyntaxKind.AsExpression { return SyntaxKind.AsExpression; }
 
-  public readonly $expression: $$UpdateExpressionOrHigher;
+  public $expression!: $$UpdateExpressionOrHigher;
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: AsExpression,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.AsExpression`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    this.$expression = $assignmentExpression(node.expression as $UpdateExpressionNode, this, ctx, -1) as $$UpdateExpressionOrHigher;
+    this.path = `${path}${$i(idx)}.AsExpression`;
+  }
+
+  public static create(
+    node: AsExpression,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $AsExpression {
+    const $node = new $AsExpression(node, idx, depth, mos, realm, logger, path);
+
+    const $expression = $node.$expression = $assignmentExpression(node.expression as $UpdateExpressionNode, -1, depth + 1, mos, realm, logger, path) as $$UpdateExpressionOrHigher;
+    $expression.parent = $node;
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    this.$expression.hydrate(ctx);
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): $$UpdateExpressionOrHigher['node'] {
+    return this.$expression.transform(tctx) as $$UpdateExpressionOrHigher['node']; // TODO(fkleuver): fix typing
   }
 
   // This is a TS expression that wraps an ordinary expression. Just return the evaluate result.
@@ -3280,64 +4345,90 @@ export class $Identifier implements I$Node {
 
   // http://www.ecma-international.org/ecma-262/#sec-identifiers-static-semantics-stringvalue
   // 12.1.4 Static Semantics: StringValue
-  public readonly StringValue: $String;
+  public StringValue!: $String;
   // http://www.ecma-international.org/ecma-262/#sec-object-initializer-static-semantics-propname
   // 12.2.6.5 Static Semantics: PropName
-  public readonly PropName: $String;
+  public PropName!: $String;
 
   // http://www.ecma-international.org/ecma-262/#sec-identifiers-static-semantics-boundnames
   // 12.1.2 Static Semantics: BoundNames
-  public readonly BoundNames: readonly [$String];
+  public BoundNames!: readonly [$String];
   // http://www.ecma-international.org/ecma-262/#sec-identifiers-static-semantics-assignmenttargettype
   // 12.1.3 Static Semantics: AssignmentTargetType
-  public readonly AssignmentTargetType: 'strict' | 'simple';
+  public AssignmentTargetType!: 'strict' | 'simple';
 
   // http://www.ecma-international.org/ecma-262/#sec-static-semantics-coveredparenthesizedexpression
   // 12.2.1.1 Static Semantics: CoveredParenthesizedExpression
-  public readonly CoveredParenthesizedExpression: $Identifier = this;
+  public CoveredParenthesizedExpression: $Identifier = this;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-hasname
   // 12.2.1.2 Static Semantics: HasName
-  public readonly HasName: false = false;
+  public HasName: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isfunctiondefinition
   // 12.2.1.3 Static Semantics: IsFunctionDefinition
-  public readonly IsFunctionDefinition: false = false;
+  public IsFunctionDefinition: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-semantics-static-semantics-isidentifierref
   // 12.2.1.4 Static Semantics: IsIdentifierRef
-  public readonly IsIdentifierRef: true = true;
+  public IsIdentifierRef: true = true;
 
   // http://www.ecma-international.org/ecma-262/#sec-destructuring-binding-patterns-static-semantics-containsexpression
   // 13.3.3.2 Static Semantics: ContainsExpression
-  public readonly ContainsExpression: false = false;
+  public ContainsExpression: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-destructuring-binding-patterns-static-semantics-hasinitializer
   // 13.3.3.3 Static Semantics: HasInitializer
-  public readonly HasInitializer: false = false;
+  public HasInitializer: false = false;
   // http://www.ecma-international.org/ecma-262/#sec-destructuring-binding-patterns-static-semantics-issimpleparameterlist
   // 13.3.3.4 Static Semantics: IsSimpleParameterList
-  public readonly IsSimpleParameterList: true = true;
+  public IsSimpleParameterList: true = true;
 
   public get isUndefined(): false { return false; }
   public get isNull(): false { return false; }
 
-  public constructor(
+  public parent!: $AnyParentNode;
+  public readonly path: string;
+
+  private constructor(
     public readonly node: Identifier,
-    public readonly parent: $AnyParentNode,
-    public readonly ctx: Context,
     public readonly idx: number,
-    public readonly mos: $$ESModuleOrScript = parent.mos,
-    public readonly realm: Realm = parent.realm,
-    public readonly depth: number = parent.depth + 1,
-    public readonly logger: ILogger = parent.logger,
-    public readonly path: string = `${parent.path}${$i(idx)}.Identifier(${node.text})`,
+    public readonly depth: number,
+    public readonly mos: $$ESModuleOrScript,
+    public readonly realm: Realm,
+    public readonly logger: ILogger,
+    path: string,
   ) {
-    const StringValue = this.StringValue = new $String(realm, node.text, void 0, void 0, this);
+    this.path = `${path}${$i(idx)}.Identifier(${node.text})`;
+  }
+
+  public static create(
+    node: Identifier,
+    idx: number,
+    depth: number,
+    mos: $$ESModuleOrScript,
+    realm: Realm,
+    logger: ILogger,
+    path: string,
+  ): $Identifier {
+    const $node = new $Identifier(node, idx, depth, mos, realm, logger, path);
+
+    return $node;
+  }
+
+  public hydrate(ctx: HydrateContext): this {
+    this.logger.trace(`${this.path}.hydrate()`);
+    const StringValue = this.StringValue = new $String(this.realm, this.node.text, void 0, void 0, this);
     this.PropName = StringValue;
     this.BoundNames = [StringValue] as const;
 
-    if (hasBit(ctx, Context.InStrictMode) && (StringValue['[[Value]]'] === 'eval' || StringValue['[[Value]]'] === 'arguments')) {
+    if (hasBit(ctx, HydrateContext.ContainsUseStrict) && (StringValue['[[Value]]'] === 'eval' || StringValue['[[Value]]'] === 'arguments')) {
       this.AssignmentTargetType = 'strict';
     } else {
       this.AssignmentTargetType = 'simple';
     }
+
+    return this;
+  }
+
+  public transform(tctx: TransformationContext): this['node'] {
+    return this.node;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-identifiers-runtime-semantics-evaluation
@@ -3481,7 +4572,7 @@ export class $Identifier implements I$Node {
 
     // 6. If environment is undefined, return ? PutValue(lhs, v).
     if (environment === void 0) {
-      return lhs.PutValue(ctx, v as $AnyNonEmpty).enrichWith(ctx, this);
+      return lhs.PutValue(ctx, v as $AnyNonEmpty, null).enrichWith(ctx, this);
     }
 
     // 7. Return InitializeReferencedBinding(lhs, v).
@@ -3538,7 +4629,7 @@ export class $Identifier implements I$Node {
 
     // 5. If environment is undefined, return ? PutValue(lhs, v).
     if (environment === void 0) {
-      return lhs.PutValue(ctx, v as $AnyNonEmpty).enrichWith(ctx, this);
+      return lhs.PutValue(ctx, v as $AnyNonEmpty, null).enrichWith(ctx, this);
     }
 
     // 6. Return InitializeReferencedBinding(lhs, v).

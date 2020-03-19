@@ -15,13 +15,13 @@ import {
   CustomElementDefinition,
   IRenderContext,
   getRenderContext,
+  ISyntheticView,
 } from '@aurelia/runtime';
 import {
   HTMLTargetedInstruction,
   isHTMLTargetedInstruction
 } from './definitions';
 import { SetAttributeInstruction } from './instructions';
-import { ISyntheticView } from '@aurelia/runtime/dist/lifecycle';
 
 export function createElement<T extends INode = Node, C extends Constructable = Constructable>(
   dom: IDOM<T>,

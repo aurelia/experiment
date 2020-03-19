@@ -44,6 +44,12 @@ import {
   $TypeError,
   $ReferenceError,
 } from './error';
+import {
+  $$ValueDeclaration,
+} from '../ast/_shared';
+import {
+  $ESModule,
+} from '../ast/modules';
 
 export type $EnvRec = (
   $DeclarativeEnvRec |
@@ -72,11 +78,13 @@ export class $Binding implements IDisposable {
     public value: $AnyNonError,
     public name: string,
     public origin: $EnvRec,
+    public declaringNode: $$ValueDeclaration | null,
     public M: IModule | null = null,
     public N2: $String | null = null,
   ) {}
 
   public dispose(this: Writable<Partial<$Binding>>): void {
+    this.declaringNode = void 0;
     this.value = void 0;
     this.origin = void 0;
     this.M = void 0;
@@ -145,6 +153,7 @@ export class $DeclarativeEnvRec implements IDisposable {
     ctx: ExecutionContext,
     N: $String,
     D: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Empty {
     this.logger.debug(`CreateMutableBinding(${N['[[Value]]']})`);
 
@@ -163,6 +172,7 @@ export class $DeclarativeEnvRec implements IDisposable {
       /* value */intrinsics.empty,
       /* name */N['[[Value]]'],
       /* origin */this,
+      /* declaringNode */declaringNode,
     );
     envRec.bindings.set(N['[[Value]]'], binding);
 
@@ -176,6 +186,7 @@ export class $DeclarativeEnvRec implements IDisposable {
     ctx: ExecutionContext,
     N: $String,
     S: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Empty {
     this.logger.debug(`CreateImmutableBinding(${N['[[Value]]']})`);
 
@@ -194,6 +205,7 @@ export class $DeclarativeEnvRec implements IDisposable {
       /* value */intrinsics.empty,
       /* name */N['[[Value]]'],
       /* origin */this,
+      /* declaringNode */declaringNode,
     );
     envRec.bindings.set(N['[[Value]]'], binding);
 
@@ -235,6 +247,7 @@ export class $DeclarativeEnvRec implements IDisposable {
     N: $String,
     V: $AnyNonEmpty,
     S: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Empty | $Error {
     this.logger.debug(`SetMutableBinding(${N['[[Value]]']})`);
 
@@ -253,7 +266,7 @@ export class $DeclarativeEnvRec implements IDisposable {
       }
 
       // 2. b. Perform envRec.CreateMutableBinding(N, true).
-      envRec.CreateMutableBinding(ctx, N, intrinsics.true);
+      envRec.CreateMutableBinding(ctx, N, intrinsics.true, declaringNode);
 
       // 2. c. Perform envRec.InitializeBinding(N, V).
       envRec.InitializeBinding(ctx, N, V);
@@ -310,6 +323,29 @@ export class $DeclarativeEnvRec implements IDisposable {
 
     // 4. Return the value currently bound to N in envRec.
     return binding.value as $AnyNonEmpty;
+  }
+
+  public getBinding(
+    N: $String,
+  ): $Binding | undefined  {
+    const binding = this.bindings.get(N['[[Value]]']);
+    if (binding === void 0) {
+      return binding;
+    }
+
+    if (binding.isIndirect) {
+      const M = binding.M!;
+      const N2 = binding.N2!;
+      const targetER = M['[[Environment]]'];
+
+      if (targetER.isUndefined) {
+        throw new ReferenceError(`Cannot resolve export: ${N['[[Value]]']} from file "${(M as $ESModule).$file.path}"`);
+      }
+
+      return targetER.getBinding(N2);
+    }
+
+    return binding;
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-declarative-environment-records-deletebinding-n
@@ -477,6 +513,7 @@ export class $ObjectEnvRec implements IDisposable {
     ctx: ExecutionContext,
     N: $String,
     D: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Boolean | $Error {
     this.logger.debug(`CreateMutableBinding(${N['[[Value]]']})`);
 
@@ -495,6 +532,7 @@ export class $ObjectEnvRec implements IDisposable {
     Desc['[[Writable]]'] = intrinsics.true;
     Desc['[[Enumerable]]'] = intrinsics.true;
     Desc['[[Configurable]]'] = D;
+    Desc.declaringNode = declaringNode;
     return $DefinePropertyOrThrow(ctx, bindings, N, Desc);
   }
 
@@ -504,6 +542,7 @@ export class $ObjectEnvRec implements IDisposable {
     ctx: ExecutionContext,
     N: $String,
     S: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Boolean | $Error {
     // The concrete Environment Record method CreateImmutableBinding is never used within this specification in association with object Environment Records.
     throw new Error('Should not be called');
@@ -582,6 +621,23 @@ export class $ObjectEnvRec implements IDisposable {
 
     // 5. Return ? Get(bindings, N).
     return bindings['[[Get]]'](ctx, N, bindings);
+  }
+
+  public getBinding(
+    N: $String,
+  ): $PropertyDescriptor  {
+    const bindings = this.bindingObject;
+    const value = bindings['[[HasProperty]]'](this.realm.stack.top, N);
+    if (value.isAbrupt) {
+      throw new Error(`Error on trying to resolve binding ${N['[[Value]]']} from object.`);
+    }
+
+    if (value.isFalsey) {
+      throw new Error(`Cannot resolve binding ${N['[[Value]]']} from object.`);
+    }
+
+    // 5. Return ? Get(bindings, N).
+    return bindings.getPropertyDescriptor(this.realm.stack.top, N, bindings);
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-object-environment-records-deletebinding-n
@@ -933,6 +989,7 @@ export class $GlobalEnvRec implements IDisposable {
     ctx: ExecutionContext,
     N: $String,
     D: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Empty | $Error {
     this.logger.debug(`CreateMutableBinding(${N['[[Value]]']})`);
 
@@ -948,7 +1005,7 @@ export class $GlobalEnvRec implements IDisposable {
     }
 
     // 4. Return DclRec.CreateMutableBinding(N, D).
-    return dclRec.CreateMutableBinding(ctx, N, D);
+    return dclRec.CreateMutableBinding(ctx, N, D, declaringNode);
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-global-environment-records-createimmutablebinding-n-s
@@ -957,6 +1014,7 @@ export class $GlobalEnvRec implements IDisposable {
     ctx: ExecutionContext,
     N: $String,
     S: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Empty | $Error {
     this.logger.debug(`CreateImmutableBinding(${N['[[Value]]']})`);
 
@@ -972,7 +1030,7 @@ export class $GlobalEnvRec implements IDisposable {
     }
 
     // 4. Return DclRec.CreateImmutableBinding(N, S).
-    return dclRec.CreateImmutableBinding(ctx, N, S);
+    return dclRec.CreateImmutableBinding(ctx, N, S, declaringNode);
   }
 
   // http://www.ecma-international.org/ecma-262/#sec-global-environment-records-initializebinding-n-v
@@ -1011,6 +1069,7 @@ export class $GlobalEnvRec implements IDisposable {
     N: $String,
     V: $AnyNonEmpty,
     S: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Boolean | $Empty | $Error {
     this.logger.debug(`SetMutableBinding(${N['[[Value]]']})`);
 
@@ -1023,7 +1082,7 @@ export class $GlobalEnvRec implements IDisposable {
     // 3. If DclRec.HasBinding(N) is true, then
     if (dclRec.HasBinding(ctx, N).isTruthy) {
       // 3. a. Return DclRec.SetMutableBinding(N, V, S).
-      return dclRec.SetMutableBinding(ctx, N, V, S);
+      return dclRec.SetMutableBinding(ctx, N, V, S, declaringNode);
     }
 
     // 4. Let ObjRec be envRec.[[ObjectRecord]].
@@ -1313,6 +1372,7 @@ export class $GlobalEnvRec implements IDisposable {
     ctx: ExecutionContext,
     N: $String,
     D: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Empty | $Error {
     this.logger.debug(`CreateGlobalVarBinding(${N['[[Value]]']})`);
 
@@ -1338,7 +1398,7 @@ export class $GlobalEnvRec implements IDisposable {
     // 6. If hasProperty is false and extensible is true, then
     if (hasProperty.isFalsey && extensible.isTruthy) {
       // 6. a. Perform ? ObjRec.CreateMutableBinding(N, D).
-      const $CreateMutableBinding = objRec.CreateMutableBinding(ctx, N, D);
+      const $CreateMutableBinding = objRec.CreateMutableBinding(ctx, N, D, declaringNode);
       if ($CreateMutableBinding.isAbrupt) { return $CreateMutableBinding; }
 
       // 6. b. Perform ? ObjRec.InitializeBinding(N, undefined).
@@ -1366,6 +1426,7 @@ export class $GlobalEnvRec implements IDisposable {
     N: $String,
     V: $AnyNonEmpty,
     D: $Boolean,
+    declaringNode: $$ValueDeclaration | null,
   ): $Empty | $Error {
     this.logger.debug(`CreateGlobalFunctionBinding(${N['[[Value]]']})`);
 
@@ -1403,6 +1464,8 @@ export class $GlobalEnvRec implements IDisposable {
 
       desc['[[Value]]'] = V;
     }
+
+    desc.declaringNode = declaringNode;
 
     // 7. Perform ? DefinePropertyOrThrow(globalObject, N, desc).
     const $DefinePropertyOrThrowResult = $DefinePropertyOrThrow(ctx, globalObject, N, desc);
@@ -1516,6 +1579,28 @@ export class $ModuleEnvRec extends $DeclarativeEnvRec implements IDisposable {
     return binding.value as $AnyNonEmpty;
   }
 
+  public getBinding(
+    N: $String,
+  ): $Binding | undefined {
+    const binding = this.bindings.get(N['[[Value]]']);
+    if (binding === void 0) {
+      return binding;
+    }
+    if (binding.isIndirect) {
+      const M = binding.M!;
+      const N2 = binding.N2!;
+      const targetER = M['[[Environment]]'];
+
+      if (targetER.isUndefined) {
+        throw new ReferenceError(`Cannot resolve export: ${N['[[Value]]']} from file "${(M as $ESModule).$file.path}"`);
+      }
+
+      return targetER.getBinding(N2);
+    }
+
+    return binding;
+  }
+
   // http://www.ecma-international.org/ecma-262/#sec-module-environment-records-deletebinding-n
   // 8.1.1.5.2 DeleteBinding ( N )
   public DeleteBinding(
@@ -1556,6 +1641,7 @@ export class $ModuleEnvRec extends $DeclarativeEnvRec implements IDisposable {
     N: $String,
     M: IModule,
     N2: $String,
+    declaringNode: $$ValueDeclaration | null,
   ): $Empty {
     this.logger.debug(`CreateImportBinding(${N['[[Value]]']})`);
 
@@ -1577,6 +1663,7 @@ export class $ModuleEnvRec extends $DeclarativeEnvRec implements IDisposable {
       /* value */intrinsics.empty,
       /* name */N['[[Value]]'],
       /* origin */this,
+      /* declaringNode */declaringNode,
       /* M */M,
       /* N2 */N2,
     );

@@ -273,7 +273,7 @@ export interface ILogger {
    *
    * ```ts
    * export class MyComponent {
-   *   constructor(@ILogger private logger: ILogger) {
+   *   constructor(&#64;ILogger private logger: ILogger) {
    *     this.logger.debug('before scoping');
    *     // console output: '[DBG] before scoping'
    *     this.logger = logger.scopeTo('MyComponent');

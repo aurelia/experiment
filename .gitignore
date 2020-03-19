@@ -17,3 +17,6 @@ TESTS-*.xml
 
 test/cypress/integration/examples
 screenshots
+
+out
+result

@@ -1,0 +1,39 @@
+{
+  "compilerOptions": {
+      "target": "es2017",
+      "module": "commonjs",
+      "lib": [
+          "esnext"
+      ],
+      "outDir": "./out",
+      "sourceMap": true,
+      "declaration": false,
+      "removeComments": true,
+      "importHelpers": true,
+      "strict": true,
+      "downlevelIteration": true,
+      "noImplicitAny": true,
+      "strictNullChecks": true,
+      "noImplicitThis": true,
+      "alwaysStrict": true,
+      "noImplicitReturns": true,
+      "moduleResolution": "node",
+      "experimentalDecorators": true,
+      "emitDecoratorMetadata": true,
+      "skipLibCheck": true
+  },
+  "baseUrl": "./src",
+  "paths": {
+      "@utils/*": [
+          "./utils/*"
+      ]
+  },
+
+  "exclude": [
+      "node_modules",
+      "wwwroot",
+      "typings",
+      "test",
+      "dist"
+  ]
+}

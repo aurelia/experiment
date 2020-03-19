@@ -45,7 +45,8 @@
     "test/navigation-skeleton/app",
     "test/rainbow-spiral",
     "test/realworld",
-    "test/sierpinski-triangle"
+    "test/sierpinski-triangle",
+    "tools/api-doc-generator"
   ],
   "version": "0.6.0"
 }

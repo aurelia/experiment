@@ -25,6 +25,21 @@
     {
       "type": "node",
       "request": "launch",
+      "name": "Launch Api Doc Generator",
+      "program": "${workspaceRoot}/tools/api-doc-generator/index.ts",
+      "cwd": "${workspaceRoot}",
+      "preLaunchTask": "tools-tsc",
+      "args": [
+        "p"
+      ],
+      "outFiles": [
+        "${workspaceRoot}/tools/api-doc-generator/out/**/*.js"
+      ],
+      "sourceMaps": true
+    },
+    {
+      "type": "node",
+      "request": "launch",
       "name": "Launch mocha runtime tests",
       "program": "${workspaceRoot}/node_modules/mocha/bin/_mocha",
       "env": {

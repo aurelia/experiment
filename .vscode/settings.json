@@ -44,6 +44,7 @@
   ],
   "workbench.colorCustomizations": {
     "activityBar.background": "#563f80",
+    "activityBar.activeBorder": "#ab7354",
     "activityBar.foreground": "#e7e7e7",
     "activityBar.inactiveForeground": "#e7e7e799",
     "activityBarBadge.background": "#ab7354",
@@ -57,5 +58,6 @@
     "statusBar.foreground": "#e7e7e7"
   },
   "workbench.tree.indent": 16,
-  "git.pullTags": false
+  "git.pullTags": false,
+  "peacock.color": "#3f2e5e"
 }

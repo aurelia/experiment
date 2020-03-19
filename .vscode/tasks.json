@@ -1,0 +1,23 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+      {
+          "label": "tools-tsc",
+          "type": "typescript",
+          "tsconfig": "/tools/api-doc-generator/tsconfig.json",
+          "problemMatcher": [
+              {
+                  "base": "$tsc",
+                  "fileLocation": [
+                      "relative",
+                      "${workspaceRoot}/node_modules/typescript/lib"
+                  ]
+              }
+          ],
+          "group": {
+              "kind": "build",
+              "isDefault": true
+          }
+      }
+  ],
+}

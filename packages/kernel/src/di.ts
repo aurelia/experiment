@@ -23,6 +23,7 @@ export interface IDefaultableInterfaceSymbol<K> extends InterfaceSymbol<K> {
 // Otherwise IServiceLocator references IResolver, which references IContainer, which extends IServiceLocator.
 interface IResolverLike<C, K = any> {
   readonly $isResolver: true;
+  readonly registerInRequester?: boolean;
   resolve(handler: C, requestor: C): Resolved<K>;
   getFactory?(container: C): (K extends Constructable ? IFactory<K> : never) | null;
 }
@@ -144,7 +145,6 @@ function cloneArrayWithPossibleProps<T>(source: readonly T[]): T[] {
 }
 
 export interface IContainerConfiguration {
-  jitRegisterInRoot: boolean;
   defaultResolver(key: Key, handler: IContainer): IResolver;
 }
 
@@ -155,7 +155,6 @@ export const DefaultResolver = {
 };
 
 export const DefaultContainerConfiguration: IContainerConfiguration = {
-  jitRegisterInRoot: true,
   defaultResolver: DefaultResolver.singleton,
 };
 
@@ -400,9 +399,9 @@ export const DI = {
    * Foo.register(container);
    * ```
    */
-  singleton<T extends Constructable>(target: T & Partial<RegisterSelf<T>>): T & RegisterSelf<T> {
+  singleton<T extends Constructable>(target: T & Partial<RegisterSelf<T>>, registerInRequester: boolean = false): T & RegisterSelf<T> {
     target.register = function register(container: IContainer): IResolver<InstanceType<T>> {
-      const registration = Registration.singleton(target, target);
+      const registration = Registration.singleton(target, target, registerInRequester);
       return registration.register(container, target);
     };
     return target as T & RegisterSelf<T>;
@@ -458,8 +457,10 @@ export function transient<T extends Constructable>(target?: T & Partial<Register
   return target == null ? transientDecorator : transientDecorator(target);
 }
 
-function singletonDecorator<T extends Constructable>(target: T & Partial<RegisterSelf<T>>): T & RegisterSelf<T> {
-  return DI.singleton(target);
+function singletonDecorator<T extends Constructable>(registerInRequester: boolean = false): (target: T & Partial<RegisterSelf<T>>) => T & RegisterSelf<T> {
+  return function (target: T & Partial<RegisterSelf<T>>) {
+    return DI.singleton(target, registerInRequester);
+  };
 }
 /**
  * Registers the decorated class as a singleton dependency; the class will only be created once. Each
@@ -470,7 +471,7 @@ function singletonDecorator<T extends Constructable>(target: T & Partial<Registe
  * class Foo { }
  * ```
  */
-export function singleton<T extends Constructable>(): typeof singletonDecorator;
+export function singleton<T extends Constructable>(): any;
 /**
  * Registers the `target` class as a singleton dependency; the class will only be created once. Each
  * consecutive time the dependency is resolved, the same instance will be returned.
@@ -483,8 +484,13 @@ export function singleton<T extends Constructable>(): typeof singletonDecorator;
  * ```
  */
 export function singleton<T extends Constructable>(target: T & Partial<RegisterSelf<T>>): T & RegisterSelf<T>;
-export function singleton<T extends Constructable>(target?: T & Partial<RegisterSelf<T>>): T & RegisterSelf<T> | typeof singletonDecorator {
-  return target == null ? singletonDecorator : singletonDecorator(target);
+export function singleton<T extends Constructable>(
+  target?: T & Partial<RegisterSelf<T>>,
+  registerInRequester: boolean = false): any {
+  return target === undefined && !registerInRequester ? singletonDecorator()
+    : target === undefined && registerInRequester ? singletonDecorator(true)
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion
+    : singletonDecorator(registerInRequester)(target!);
 }
 
 export const all = createResolver((key: Key, handler: IContainer, requestor: IContainer) => requestor.getAll(key));
@@ -594,6 +600,7 @@ export class Resolver implements IResolver, IRegistration {
     public key: Key,
     public strategy: ResolverStrategy,
     public state: any,
+    public readonly registerInRequester: boolean = false,
   ) {}
 
   public get $isResolver(): true { return true; }
@@ -1006,8 +1013,7 @@ export class Container implements IContainer {
 
       if (resolver == null) {
         if (current.parent == null) {
-          const handler = this.config.jitRegisterInRoot ? current : this;
-          return autoRegister ? this.jitRegister(key, handler) : null;
+          return autoRegister ? this.jitRegister(key, current) : null;
         }
 
         current = current.parent;
@@ -1042,8 +1048,7 @@ export class Container implements IContainer {
 
       if (resolver == null) {
         if (current.parent == null) {
-          const handler = this.config.jitRegisterInRoot ? current : this;
-          resolver = this.jitRegister(key, handler);
+          resolver = this.jitRegister(key, current);
           return resolver.resolve(current, this);
         }
 
@@ -1216,8 +1221,8 @@ export const Registration = {
    * @param key
    * @param value
    */
-  singleton<T extends Constructable>(key: Key, value: T): IRegistration<InstanceType<T>> {
-    return new Resolver(key, ResolverStrategy.singleton, value);
+  singleton<T extends Constructable>(key: Key, value: T, registerInRequester: boolean = false): IRegistration<InstanceType<T>> {
+    return new Resolver(key, ResolverStrategy.singleton, value, registerInRequester);
   },
   /**
    * Creates an instance from a class.

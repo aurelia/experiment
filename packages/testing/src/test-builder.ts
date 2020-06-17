@@ -1,23 +1,19 @@
-import {
-  DI,
-  IContainer,
-  Registration,
-} from '@aurelia/kernel';
+import { DI, IContainer, Registration } from '@aurelia/kernel';
 import {
   IDirtyChecker,
-
   ILifecycle,
   ILifecycleRegistration,
   IObserverLocator,
   IObserverLocatorRegistration,
+  IScheduler,
   IScope,
   ITargetAccessorLocator,
   ITargetObserverLocator,
   LifecycleFlags as LF,
   OverrideContext,
   Scope,
-  IScheduler,
 } from '@aurelia/runtime';
+
 // import {
 //   HTMLTargetedInstruction,
 //   NodeSequenceFactory,
@@ -477,7 +473,7 @@ export function createObserverLocator(containerOrLifecycle?: IContainer | ILifec
   Registration.instance(ITargetAccessorLocator, dummyLocator).register(container);
   container.register(IObserverLocatorRegistration);
   Registration.instance(IScheduler, dummyScheduler).register(container);
-  return container.get(IObserverLocator);
+  return container.getAll(IObserverLocator)[0];
 }
 
 export function createScopeForTest(bindingContext: any = {}, parentBindingContext?: any): IScope {

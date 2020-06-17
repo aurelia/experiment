@@ -58,7 +58,8 @@ jobs:
 
   node:
     needs: ["build"]
-    timeout-minutes: 5
+    timeout-minutes: 10
+    continue-on-error: true
     strategy:
       matrix:
         suite: [

@@ -1,30 +1,9 @@
-import {
-  Constructable,
-  DI,
-  IContainer,
-  PLATFORM,
-  Registration
-} from '@aurelia/kernel';
+import { Constructable, DI, IContainer, PLATFORM, Registration } from '@aurelia/kernel';
 import { IActivator } from './activator';
-import {
-  IDOM,
-  INode
-} from './dom';
-import {
-  BindingStrategy,
-  LifecycleFlags
-} from './flags';
-import {
-  ICustomElementViewModel,
-  ILifecycle,
-  ICustomElementController,
-} from './lifecycle';
-import {
-  ContinuationTask,
-  ILifecycleTask,
-  IStartTaskManager,
-  LifecycleTask,
-} from './lifecycle-task';
+import { IDOM, INode } from './dom';
+import { BindingStrategy, LifecycleFlags } from './flags';
+import { ICustomElementController, ICustomElementViewModel, ILifecycle } from './lifecycle';
+import { ContinuationTask, ILifecycleTask, IStartTaskManager, LifecycleTask } from './lifecycle-task';
 import { CustomElement } from './resources/custom-element';
 import { Controller } from './templating/controller';
 
@@ -151,11 +130,11 @@ export class CompositionRoot<T extends INode = INode> {
   private create(): void {
     const config = this.config;
     const instance = this.viewModel = CustomElement.isType(config.component as Constructable)
-      ? this.container.get(config.component as Constructable | {}) as ICustomElementViewModel<T>
+      ? this.container.getAll(config.component as Constructable | {})[0] as ICustomElementViewModel<T>
       : config.component as ICustomElementViewModel<T>;
 
     const container = this.container;
-    const lifecycle = container.get(ILifecycle);
+    const lifecycle = container.getAll(ILifecycle)[0];
     this.controller = Controller.forCustomElement(instance, lifecycle, this.host, container, void 0, this.strategy as number);
   }
 }

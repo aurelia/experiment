@@ -44,7 +44,7 @@ export class HTMLTestContext {
     if (this._scheduler === void 0) {
       this._scheduler = this.container.register(
         Registration.instance(IScheduler, createDOMScheduler(this.container, this.wnd))
-      ).get(IScheduler);
+      ).getAll(IScheduler)[0];
     }
     return this._scheduler;
   }
@@ -56,7 +56,7 @@ export class HTMLTestContext {
   }
   public get observerLocator(): IObserverLocator {
     if (this._observerLocator === void 0) {
-      this._observerLocator = this.container.get(IObserverLocator);
+      this._observerLocator = this.container.getAll(IObserverLocator)[0];
     }
     return this._observerLocator;
   }

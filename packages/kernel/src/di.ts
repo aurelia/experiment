@@ -149,9 +149,9 @@ export interface IContainerConfiguration {
 }
 
 export const DefaultResolver = {
-  none(key: Key): IResolver {throw Error(`${key.toString()} not registered, did you forget to add @singleton()?`);},
-  singleton(key: Key): IResolver {return new Resolver(key, ResolverStrategy.singleton, key);},
-  transient(key: Key): IResolver {return new Resolver(key, ResolverStrategy.transient, key);},
+  none(key: Key) {throw Error(`${key.toString()} not registered, did you forget to add @singleton()?`);},
+  singleton(key: Key) {return new Resolver(key, ResolverStrategy.singleton, key);},
+  transient(key: Key) {return new Resolver(key, ResolverStrategy.transient, key);},
 };
 
 export const DefaultContainerConfiguration: IContainerConfiguration = {
@@ -632,8 +632,11 @@ export class Resolver implements IResolver, IRegistration {
       }
       case ResolverStrategy.callback:
         return (this.state as ResolveCallback)(handler, requestor, this);
-      case ResolverStrategy.array:
-        return (this.state as IResolver[])[0].resolve(handler, requestor);
+      case ResolverStrategy.array: {
+        const name = (this.key as InternalDefaultableInterfaceSymbol<unknown>)?.$isInterface
+          ? (this.key as InternalDefaultableInterfaceSymbol<unknown>).friendlyName : String(this.key);
+        throw new Error(`There is more than one resolver for ${name}, use 'container.getAll'`);
+      }
       case ResolverStrategy.alias:
         return handler.get(this.state);
       default:

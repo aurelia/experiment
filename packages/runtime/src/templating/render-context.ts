@@ -1,30 +1,30 @@
 import {
-    Constructable,
-    IContainer,
-    IDisposable,
-    IFactory,
-    InstanceProvider,
-    IResolver,
-    Key,
-    Reporter,
-    Resolved,
-    Transformer,
+  Constructable,
+  IContainer,
+  IDisposable,
+  IFactory,
+  InstanceProvider,
+  IResolver,
+  Key,
+  Reporter,
+  Resolved,
+  Transformer,
 } from '@aurelia/kernel';
 import {
-    IHydrateInstruction,
-    ITargetedInstruction,
-    mergeParts,
-    PartialCustomElementDefinitionParts,
+  IHydrateInstruction,
+  ITargetedInstruction,
+  mergeParts,
+  PartialCustomElementDefinitionParts,
 } from '../definitions';
 import { IDOM, INode, INodeSequence, IRenderLocation } from '../dom';
 import { LifecycleFlags } from '../flags';
 import {
-    IController,
-    ICustomAttributeViewModel,
-    ICustomElementViewModel,
-    ILifecycle,
-    IRenderableController,
-    IViewFactory,
+  IController,
+  ICustomAttributeViewModel,
+  ICustomElementViewModel,
+  ILifecycle,
+  IRenderableController,
+  IViewFactory,
 } from '../lifecycle';
 import { IRenderer, ITemplateCompiler } from '../renderer';
 import { CustomElementDefinition, PartialCustomElementDefinition } from '../resources/custom-element';
@@ -265,7 +265,7 @@ export class RenderContext<T extends INode = INode> implements IComponentFactory
     public readonly parts: PartialCustomElementDefinitionParts | undefined,
   ) {
     const container = this.container = parentContainer.createChild();
-    this.renderer = container.get(IRenderer);
+    this.renderer = container.getAll(IRenderer)[0];
 
     container.registerResolver(
       IViewFactory,

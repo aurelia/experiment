@@ -490,7 +490,6 @@ export class Scope {
     }
 
     const found: FoundRoute = new FoundRoute();
-    let params: Record<string, unknown> = {};
     if (path.startsWith('/') || path.startsWith('+')) {
       path = path.slice(1);
     }
@@ -507,7 +506,7 @@ export class Scope {
         Reflect.deleteProperty($params, 'remainingPath');
         found.matching = found.matching.slice(0, found.matching.indexOf(found.remaining));
       }
-      params = $params;
+      found.params = $params;
     }
     if (found.foundConfiguration) {
       // clone it so config doesn't get modified
@@ -515,14 +514,14 @@ export class Scope {
       const instructions: ViewportInstruction[] = found.instructions.slice();
       while (instructions.length > 0) {
         const instruction: ViewportInstruction = instructions.shift() as ViewportInstruction;
-        instruction.addParameters(params);
+        instruction.addParameters(found.params);
         instruction.route = '';
         if (instruction.nextScopeInstructions !== null) {
           instructions.unshift(...instruction.nextScopeInstructions);
         }
       }
       if (found.instructions.length > 0) {
-        found.instructions[0].route = found.matching;
+        found.instructions[0].route = found;
       }
     }
     return found;
@@ -532,7 +531,15 @@ export class Scope {
     if (route.id === void 0) {
       route.id = route.path;
     }
-    route.instructions = NavigationInstructionResolver.toViewportInstructions(this.router, route.instructions);
+    if (route.instructions === void 0) {
+      route.instructions = [{
+        component: route.component!,
+        viewport: route.viewport,
+        parameters: route.parameters,
+        children: route.children,
+      }];
+    }
+    route.instructions = NavigationInstructionResolver.toViewportInstructions(this.router, route.instructions!);
     return route;
   }
 }

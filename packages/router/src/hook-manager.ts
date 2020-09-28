@@ -1,7 +1,6 @@
 import { Hook } from './hook';
 import { INavigatorInstruction, ComponentAppellation, IComponentAndOrViewportOrNothing } from './interfaces';
 import { ViewportInstruction } from './viewport-instruction';
-import { Viewport } from './viewport';
 
 /**
  * Public API
@@ -10,6 +9,7 @@ export const enum HookTypes {
   BeforeNavigation = 'beforeNavigation',
   TransformFromUrl = 'transformFromUrl',
   TransformToUrl = 'transformToUrl',
+  SetTitle = 'setTitle',
 }
 /**
  * Public API
@@ -23,11 +23,15 @@ export type TransformFromUrlHookFunction = (url: string, navigationInstruction: 
  * Public API
  */
 export type TransformToUrlHookFunction = (state: string | ViewportInstruction[], navigationInstruction: INavigatorInstruction) => Promise<string | ViewportInstruction[]>;
+/**
+ * Public API
+ */
+export type SetTitleHookFunction = (title: string | ViewportInstruction[], navigationInstruction: INavigatorInstruction) => Promise<string | ViewportInstruction[]>;
 
 /**
  * @internal
  */
-export type HookFunction = BeforeNavigationHookFunction | TransformFromUrlHookFunction | TransformToUrlHookFunction;
+export type HookFunction = BeforeNavigationHookFunction | TransformFromUrlHookFunction | TransformToUrlHookFunction | SetTitleHookFunction;
 /**
  * @internal
  */
@@ -78,6 +82,7 @@ export class HookManager {
     beforeNavigation: [],
     transformFromUrl: [],
     transformToUrl: [],
+    setTitle: [],
   };
 
   private lastIdentity: number = 0;
@@ -85,6 +90,7 @@ export class HookManager {
   public addHook(beforeNavigationHookFunction: BeforeNavigationHookFunction, options?: IHookOptions): HookIdentity;
   public addHook(transformFromUrlHookFunction: TransformFromUrlHookFunction, options?: IHookOptions): HookIdentity;
   public addHook(transformToUrlHookFunction: TransformToUrlHookFunction, options?: IHookOptions): HookIdentity;
+  public addHook(setTitleHookFunction: SetTitleHookFunction, options?: IHookOptions): HookIdentity;
   public addHook(hookFunction: HookFunction, options?: IHookOptions): HookIdentity;
   public addHook(hookFunction: HookFunction, options?: IHookOptions): HookIdentity {
     const hook: Hook = new Hook(hookFunction, options || {}, ++this.lastIdentity);
@@ -105,14 +111,17 @@ export class HookManager {
     }
   }
 
-  public invokeBeforeNavigation(viewportInstructions: ViewportInstruction[], navigationInstruction: INavigatorInstruction): Promise<boolean | ViewportInstruction[]> {
+  public async invokeBeforeNavigation(viewportInstructions: ViewportInstruction[], navigationInstruction: INavigatorInstruction): Promise<boolean | ViewportInstruction[]> {
     return this.invoke(HookTypes.BeforeNavigation, navigationInstruction, viewportInstructions) as Promise<boolean | ViewportInstruction[]>;
   }
-  public invokeTransformFromUrl(url: string, navigationInstruction: INavigatorInstruction): Promise<string | ViewportInstruction[]> {
+  public async invokeTransformFromUrl(url: string, navigationInstruction: INavigatorInstruction): Promise<string | ViewportInstruction[]> {
     return this.invoke(HookTypes.TransformFromUrl, navigationInstruction, url) as Promise<string | ViewportInstruction[]>;
   }
-  public invokeTransformToUrl(state: string | ViewportInstruction[], navigationInstruction: INavigatorInstruction): Promise<string | ViewportInstruction[]> {
+  public async invokeTransformToUrl(state: string | ViewportInstruction[], navigationInstruction: INavigatorInstruction): Promise<string | ViewportInstruction[]> {
     return this.invoke(HookTypes.TransformToUrl, navigationInstruction, state) as Promise<string | ViewportInstruction[]>;
+  }
+  public async invokeSetTitle(title: string | ViewportInstruction[], navigationInstruction: INavigatorInstruction): Promise<string | ViewportInstruction[]> {
+    return this.invoke(HookTypes.SetTitle, navigationInstruction, title) as Promise<string | ViewportInstruction[]>;
   }
 
   public async invoke(type: HookTypes, navigationInstruction: INavigatorInstruction, arg: HookParameter): Promise<HookResult> {

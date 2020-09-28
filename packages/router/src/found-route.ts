@@ -10,6 +10,7 @@ export class FoundRoute {
     public matching: string = '',
     public instructions: ViewportInstruction[] = [],
     public remaining: string = '',
+    public params: Record<string, unknown> = {},
   ) { }
 
   public get foundConfiguration(): boolean {

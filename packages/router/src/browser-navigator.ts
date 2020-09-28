@@ -110,6 +110,10 @@ export class BrowserNavigator implements INavigatorStore, INavigatorViewer {
     return this.enqueue(this, 'popState', []);
   }
 
+  public setTitle(title: string): void {
+    this.window.document.title = title;
+  }
+
   public readonly handlePopstate = (ev: PopStateEvent | null): Promise<void> => {
     return this.enqueue(this, 'popstate', [ev]);
   };

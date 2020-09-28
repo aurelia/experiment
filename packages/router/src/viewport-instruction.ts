@@ -7,6 +7,7 @@ import { Viewport } from './viewport';
 import { IComponentParameter, InstructionResolver } from './instruction-resolver';
 import { Scope, IScopeOwner } from './scope';
 import { ViewportScope } from './viewport-scope';
+import { FoundRoute } from './found-route';
 
 /**
  * @internal - Shouldn't be used directly
@@ -36,7 +37,7 @@ export class ViewportInstruction {
   public context: string = '';
   public viewportScope: ViewportScope | null = null;
   public needsViewportDescribed: boolean = false;
-  public route: string | null = null;
+  public route: FoundRoute | string | null = null;
 
   public default: boolean = false;
 
@@ -90,11 +91,11 @@ export class ViewportInstruction {
       this.componentType = null;
       this.componentInstance = null;
     } else if (ComponentAppellationResolver.isType(component)) {
-      this.componentName = ComponentAppellationResolver.getName(component);
+      this.componentName = this.getNewName(component);
       this.componentType = ComponentAppellationResolver.getType(component);
       this.componentInstance = null;
     } else if (ComponentAppellationResolver.isInstance(component)) {
-      this.componentName = ComponentAppellationResolver.getName(component);
+      this.componentName = this.getNewName(ComponentAppellationResolver.getType(component)!);
       this.componentType = ComponentAppellationResolver.getType(component);
       this.componentInstance = ComponentAppellationResolver.getInstance(component);
     }
@@ -291,5 +292,14 @@ export class ViewportInstruction {
     }
     return this.scope === other.scope &&
       (this.viewport ? this.viewport.name : this.viewportName) === (other.viewport ? other.viewport.name : other.viewportName);
+  }
+
+  private getNewName(type: RouteableComponentType): string {
+    if (this.componentName === null
+      // || !type.aliases?.includes(this.componentName)
+    ) {
+      return ComponentAppellationResolver.getName(type);
+    }
+    return this.componentName;
   }
 }

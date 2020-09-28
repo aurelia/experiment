@@ -25,6 +25,7 @@ export class ViewportCustomElement implements ICustomElementViewModel<Element> {
   @bindable public fallback: string = '';
   @bindable public noScope: boolean = false;
   @bindable public noLink: boolean = false;
+  @bindable public noTitle: boolean = false;
   @bindable public noHistory: boolean = false;
   @bindable public stateful: boolean = false;
 
@@ -77,6 +78,10 @@ export class ViewportCustomElement implements ICustomElementViewModel<Element> {
     value = this.getAttribute('no-link', this.noLink, true);
     if (value !== void 0) {
       options.noLink = value as boolean;
+    }
+    value = this.getAttribute('no-title', this.noTitle, true);
+    if (value !== void 0) {
+      options.noTitle = value as boolean;
     }
     value = this.getAttribute('no-history', this.noHistory, true);
     if (value !== void 0) {

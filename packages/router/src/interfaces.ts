@@ -12,7 +12,9 @@ import { ViewportInstruction } from './viewport-instruction';
 
 export type RouteableComponentType<C extends Constructable = Constructable> = CustomElementType<C> & {
   parameters?: string[];
+  title?: string | TitleFunction;
 };
+export type TitleFunction = (viewModel: IRouteableComponent, instruction: NavigationInstruction) => string;
 
 export interface IRouteableComponent<T extends INode = INode> extends ICustomElementViewModel<T> {
   reentryBehavior?: ReentryBehavior;
@@ -42,10 +44,11 @@ export interface IViewportInstruction {
   children?: NavigationInstruction[];
 }
 
-export interface IRoute {
+export interface IRoute extends Partial<IViewportInstruction> {
   path: string;
   id?: string;
-  instructions: NavigationInstruction[] | ViewportInstruction[];
+  instructions?: NavigationInstruction[] | ViewportInstruction[];
+  title?: string | any;
 }
 
 export interface IComponentAndOrViewportOrNothing {

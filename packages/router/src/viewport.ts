@@ -1,6 +1,6 @@
 import { IContainer, Reporter } from '@aurelia/kernel';
-import { LifecycleFlags, IController, CustomElement, INode } from '@aurelia/runtime';
-import { ComponentAppellation, INavigatorInstruction, IRouteableComponent, ReentryBehavior, IRoute, RouteableComponentType } from './interfaces';
+import { LifecycleFlags, IController, CustomElement, INode, ICompiledRenderContext } from '@aurelia/runtime';
+import { ComponentAppellation, INavigatorInstruction, IRouteableComponent, ReentryBehavior, IRoute, RouteableComponentType, NavigationInstruction } from './interfaces';
 import { INavigatorFlags } from './navigator';
 import { IRouter } from './router';
 import { arrayRemove } from './utils';
@@ -14,6 +14,7 @@ export interface IViewportOptions extends IScopeOwnerOptions {
   default?: string;
   fallback?: string;
   noLink?: boolean;
+  noTitle?: boolean;
   stateful?: boolean;
   forceDescription?: boolean;
 }
@@ -183,6 +184,9 @@ export class Viewport implements IScopeOwner {
       }
       if (options.noLink) {
         this.options.noLink = options.noLink;
+      }
+      if (options.noTitle) {
+        this.options.noTitle = options.noTitle;
       }
       if (options.noHistory) {
         this.options.noHistory = options.noHistory;
@@ -410,21 +414,64 @@ export class Viewport implements IScopeOwner {
   }
 
   public getRoutes(): IRoute[] | null {
-    let componentType: RouteableComponentType | null =
-      this.nextContent !== null
-        && this.nextContent.content !== null
-        ? this.nextContent.content.componentType
-        : this.content.content.componentType;
-    // TODO: This is going away once Metadata is in!
-    if (componentType === null || componentType === void 0) {
-      const controller = CustomElement.for(this.element!);
-      componentType = (controller as any)!.context!.componentType;
-    }
-    if (componentType === null || componentType === void 0) {
+    const componentType = this.getComponentType();
+    if (componentType === null) {
       return null;
     }
     const routes: IRoute[] = (componentType as RouteableComponentType & { routes: IRoute[] }).routes;
     return Array.isArray(routes) ? routes : null;
+  }
+
+  public getTitle(navigationInstruction: NavigationInstruction): string {
+    if (this.options.noTitle) {
+      return '';
+    }
+    const componentType = this.getComponentType();
+    if (componentType === null) {
+      return '';
+    }
+    let title = '';
+    const typeTitle = componentType.title;
+    if (typeTitle !== void 0) {
+      if (typeof typeTitle === 'string') {
+        title = typeTitle;
+      } else {
+        const component = this.getComponentInstance();
+        title = typeTitle.call(component, component!, navigationInstruction);
+      }
+    } else if (this.router.options.title.useComponentNames) {
+      let name = this.getContentInstruction()!.componentName ?? '';
+      const prefix = this.router.options.title.componentPrefix ?? '';
+      if (name.startsWith(prefix)) {
+        name = name.slice(prefix.length);
+      }
+      name = name.replace('-', ' ');
+      title = name.slice(0, 1).toLocaleUpperCase() + name.slice(1);
+    }
+    if (this.router.options.title.transformTitle !== void 0) {
+      title = this.router.options.title.transformTitle.call(this, title, this.getContentInstruction()!);
+    }
+    return title;
+  }
+
+  private getComponentType(): RouteableComponentType | null {
+    let componentType = this.getContentInstruction()!.componentType ?? null;
+    // TODO: This is going away once Metadata is in!
+    if (componentType === null) {
+      const controller = CustomElement.for(this.element!);
+      componentType = (controller!.context as
+        ICompiledRenderContext<Element> & { componentType: RouteableComponentType })
+        .componentType;
+    }
+    return componentType ?? null;
+  }
+
+  private getComponentInstance(): IRouteableComponent | null {
+    return this.getContentInstruction()!.componentInstance ?? null;
+  }
+
+  private getContentInstruction(): ViewportInstruction | null {
+    return this.nextContent?.content ?? this.content.content ?? null;
   }
 
   private async unloadContent(): Promise<void> {

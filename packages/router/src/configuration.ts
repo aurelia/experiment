@@ -5,7 +5,7 @@ import { ViewportCustomElement } from './resources/viewport';
 import { ViewportScopeCustomElement } from './resources/viewport-scope';
 import { GotoCustomAttribute } from './resources/goto';
 import { HrefCustomAttribute } from './resources/href';
-import { IRouter, IRouterOptions } from './router';
+import { IRouter, IRouterActivateOptions } from './router';
 
 export const RouterRegistration = IRouter as unknown as IRegistry;
 
@@ -44,7 +44,7 @@ export const DefaultResources: IRegistry[] = [
   HrefCustomAttribute as unknown as IRegistry,
 ];
 
-let configurationOptions: IRouterOptions = {};
+let configurationOptions: IRouterActivateOptions = {};
 let configurationCall: ((router: IRouter) => void) = (router: IRouter) => {
   router.activate(configurationOptions);
 };
@@ -77,7 +77,7 @@ export const RouterConfiguration = {
    * Parameter is either a config object that's passed to Router's activate
    * or a config function that's called instead of Router's activate.
    */
-  customize(config?: IRouterOptions | ((router: IRouter) => void)) {
+  customize(config?: IRouterActivateOptions | ((router: IRouter) => void)) {
     if (config === undefined) {
       configurationOptions = {};
       configurationCall = (router: IRouter) => {

@@ -1,6 +1,6 @@
 import { DebugConfiguration } from '@aurelia/debug';
 import { PLATFORM, inject, IContainer } from '@aurelia/kernel';
-import { IRouter, RouterConfiguration, IConfigurableRoute, IRoute } from '@aurelia/router';
+import { IRouter, RouterConfiguration, IConfigurableRoute, IRoute, IRouterTitle, ViewportInstruction } from '@aurelia/router';
 import { Aurelia, CustomElement, customElement, IScheduler } from '@aurelia/runtime';
 import { assert, MockBrowserHistoryLocation, TestContext } from '@aurelia/testing';
 
@@ -1347,18 +1347,18 @@ describe('Router', function () {
 
     const Parent = CustomElement.define({ name: 'parent', template: '!parent!<au-viewport name="parent"></au-viewport>' }, class {
       public static routes: IRoute[] = [
-        { path: 'child-config', instructions: [{ component: 'child', viewport: 'parent' }] },
+        { path: 'child-config', instructions: [{ component: 'child', viewport: 'parent' }], title: 'ChildConfig' },
       ];
     });
     const Parent2 = CustomElement.define({ name: 'parent2', template: '!parent2!<au-viewport name="parent2"></au-viewport>' }, class {
       public static routes: IRoute[] = [
-        { path: 'child-config', instructions: [{ component: 'child', viewport: 'parent2' }] },
+        { path: 'child-config', instructions: [{ component: 'child', viewport: 'parent2' }], title: 'ChildConfig' },
         // { path: ':id', instructions: [{ component: 'child', viewport: 'parent' }] },
       ];
     });
     const Child = CustomElement.define({ name: 'child', template: `!child\${param ? ":" + param : ""}!<au-viewport name="child"></au-viewport>` }, class {
       public static routes: IRoute[] = [
-        { path: 'grandchild-config', instructions: [{ component: 'grandchild', viewport: 'child' }] },
+        { path: 'grandchild-config', instructions: [{ component: 'grandchild', viewport: 'child' }], title: 'GrandchildConfig' },
       ];
       public param: string;
       public enter(params) {
@@ -1369,9 +1369,10 @@ describe('Router', function () {
     });
     const Child2 = CustomElement.define({ name: 'child2', template: `!child2\${param ? ":" + param : ""}!<au-viewport name="child2"></au-viewport>` }, class {
       public static routes: IRoute[] = [
-        { path: 'grandchild-config', instructions: [{ component: 'grandchild', viewport: 'child2' }] },
+        { path: 'grandchild-config', instructions: [{ component: 'grandchild', viewport: 'child2' }], title: 'GrandchildConfig' },
       ];
       public static parameters = ['id'];
+      public static title = (vm) => vm.param !== void 0 ? vm.param : 'Child2';
       public param: string;
       public enter(params) {
         if (params.id !== void 0) {
@@ -1381,41 +1382,41 @@ describe('Router', function () {
     });
 
     const Grandchild = CustomElement.define({ name: 'grandchild', template: '!grandchild!' });
-    const Grandchild2 = CustomElement.define({ name: 'grandchild2', template: '!grandchild2!' });
+    const Grandchild2 = CustomElement.define({ name: 'grandchild2', template: '!grandchild2!' }, class { public static title: string = 'TheGrandchild2'; });
 
     const tests = [
-      { path: '/parent-config', result: '!parent!', url: 'parent-config' },
-      { path: '/parent2@default', result: '!parent2!', url: 'parent2' },
+      { path: '/parent-config', result: '!parent!', url: 'parent-config', title: 'ParentConfig | Aurelia' },
+      { path: '/parent2@default', result: '!parent2!', url: 'parent2', title: 'Parent2 | Aurelia' },
 
-      { path: '/parent-config/child-config', result: '!parent!!child!', url: 'parent-config/child-config' },
-      { path: '/parent2@default/child2@parent2', result: '!parent2!!child2!', url: 'parent2/child2' },
+      { path: '/parent-config/child-config', result: '!parent!!child!', url: 'parent-config/child-config', title: 'ParentConfigChildConfig | Aurelia' },
+      { path: '/parent2@default/child2@parent2', result: '!parent2!!child2!', url: 'parent2/child2', title: 'Parent2 > Child2 | Aurelia' },
 
-      { path: '/parent-config/child2@parent', result: '!parent!!child2!', url: 'parent-config/child2@parent' }, // Specific config
-      { path: '/parent2@default/child-config', result: '!parent2!!child!', url: 'parent2/child-config' },
+      { path: '/parent-config/child2@parent', result: '!parent!!child2!', url: 'parent-config/child2@parent', title: 'ParentConfigChild2@ParentConfig | Aurelia' }, // Specific config
+      { path: '/parent2@default/child-config', result: '!parent2!!child!', url: 'parent2/child-config', title: 'Parent2 > ChildConfig | Aurelia' },
 
-      { path: '/parent-config/child-config/grandchild-config', result: '!parent!!child!!grandchild!', url: 'parent-config/child-config/grandchild-config' },
-      { path: '/parent2@default/child2@parent2/grandchild2@child2', result: '!parent2!!child2!!grandchild2!', url: 'parent2/child2/grandchild2' },
+      { path: '/parent-config/child-config/grandchild-config', result: '!parent!!child!!grandchild!', url: 'parent-config/child-config/grandchild-config', title: 'ParentConfigChildConfig > GrandchildConfig | Aurelia' },
+      { path: '/parent2@default/child2@parent2/grandchild2@child2', result: '!parent2!!child2!!grandchild2!', url: 'parent2/child2/grandchild2', title: 'Parent2 > Child2 > TheGrandchild2 | Aurelia' },
 
-      { path: '/parent-config/child-config/grandchild2@child', result: '!parent!!child!!grandchild2!', url: 'parent-config/child-config/grandchild2' },
-      { path: '/parent2@default/child2@parent2/grandchild-config', result: '!parent2!!child2!!grandchild!', url: 'parent2/child2/grandchild-config' },
+      { path: '/parent-config/child-config/grandchild2@child', result: '!parent!!child!!grandchild2!', url: 'parent-config/child-config/grandchild2', title: 'ParentConfigChildConfig > TheGrandchild2 | Aurelia' },
+      { path: '/parent2@default/child2@parent2/grandchild-config', result: '!parent2!!child2!!grandchild!', url: 'parent2/child2/grandchild-config', title: 'Parent2 > Child2 > GrandchildConfig | Aurelia' },
 
-      { path: '/parent-config/child2@parent/grandchild-config', result: '!parent!!child2!!grandchild!', url: 'parent-config/child2@parent/grandchild-config' }, // Specific config
-      { path: '/parent2@default/child-config/grandchild2@child', result: '!parent2!!child!!grandchild2!', url: 'parent2/child-config/grandchild2' },
+      { path: '/parent-config/child2@parent/grandchild-config', result: '!parent!!child2!!grandchild!', url: 'parent-config/child2@parent/grandchild-config', title: 'ParentConfigChild2@ParentConfig > GrandchildConfig | Aurelia' }, // Specific config
+      { path: '/parent2@default/child-config/grandchild2@child', result: '!parent2!!child!!grandchild2!', url: 'parent2/child-config/grandchild2', title: 'Parent2 > ChildConfig > TheGrandchild2 | Aurelia' },
 
-      { path: '/parent-config/child2@parent/grandchild2@child2', result: '!parent!!child2!!grandchild2!', url: 'parent-config/child2@parent/grandchild2' }, // Specific config
-      { path: '/parent2@default/child-config/grandchild-config', result: '!parent2!!child!!grandchild!', url: 'parent2/child-config/grandchild-config' },
+      { path: '/parent-config/child2@parent/grandchild2@child2', result: '!parent!!child2!!grandchild2!', url: 'parent-config/child2@parent/grandchild2', title: 'ParentConfigChild2@ParentConfig > TheGrandchild2 | Aurelia' }, // Specific config
+      { path: '/parent2@default/child-config/grandchild-config', result: '!parent2!!child!!grandchild!', url: 'parent2/child-config/grandchild-config', title: 'Parent2 > ChildConfig > GrandchildConfig | Aurelia' },
 
-      { path: '/parent-config/abc', result: '!parent!!child:abc!', url: 'parent-config/abc' },
-      { path: '/parent2@default/child2(abc)@parent2', result: '!parent2!!child2:abc!', url: 'parent2/child2(abc)' },
+      { path: '/parent-config/abc', result: '!parent!!child:abc!', url: 'parent-config/abc', title: 'ParentConfigabcConfig | Aurelia' },
+      { path: '/parent2@default/child2(abc)@parent2', result: '!parent2!!child2:abc!', url: 'parent2/child2(abc)', title: 'Parent2 > abc | Aurelia' },
 
       // { path: '/parent-config/child2(abc)@parent', result: '!parent!!child2:abc!' },
       // { path: '/parent2@default/abc', result: '!parent2!!child:abc!' },
 
-      { path: '/parent-config/abc/grandchild-config', result: '!parent!!child:abc!!grandchild!', url: 'parent-config/abc/grandchild-config' },
-      { path: '/parent2@default/child2(abc)@parent2/grandchild2@child2', result: '!parent2!!child2:abc!!grandchild2!', url: 'parent2/child2(abc)/grandchild2' },
+      { path: '/parent-config/abc/grandchild-config', result: '!parent!!child:abc!!grandchild!', url: 'parent-config/abc/grandchild-config', title: 'ParentConfigabcConfig > GrandchildConfig | Aurelia' },
+      { path: '/parent2@default/child2(abc)@parent2/grandchild2@child2', result: '!parent2!!child2:abc!!grandchild2!', url: 'parent2/child2(abc)/grandchild2', title: 'Parent2 > abc > TheGrandchild2 | Aurelia' },
 
-      { path: '/parent-config/abc/grandchild2@child', result: '!parent!!child:abc!!grandchild2!', url: 'parent-config/abc/grandchild2' },
-      { path: '/parent2@default/child2(abc)@parent2/grandchild-config', result: '!parent2!!child2:abc!!grandchild!', url: 'parent2/child2(abc)/grandchild-config' },
+      { path: '/parent-config/abc/grandchild2@child', result: '!parent!!child:abc!!grandchild2!', url: 'parent-config/abc/grandchild2', title: 'ParentConfigabcConfig > TheGrandchild2 | Aurelia' },
+      { path: '/parent2@default/child2(abc)@parent2/grandchild-config', result: '!parent2!!child2:abc!!grandchild!', url: 'parent2/child2(abc)/grandchild-config', title: 'Parent2 > abc > GrandchildConfig | Aurelia' },
 
       // { path: '/parent-config/child2(abc)@parent/grandchild-config', result: '!parent!!child2:abc!!grandchild!' },
       // { path: '/parent2@default/abc/grandchild2@child', result: '!parent2!!child:abc!!grandchild2!' },
@@ -1425,18 +1426,21 @@ describe('Router', function () {
     ];
     const appDependencies = [Parent, Parent2, Child, Child2, Grandchild, Grandchild2];
     const appRoutes: IRoute[] = [
-      { path: 'parent-config', instructions: [{ component: 'parent', viewport: 'default' }] },
-      { path: 'parent-config/:id', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child', viewport: 'parent' }] }] },
-      { path: 'parent-config/child-config', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child', viewport: 'parent' }] }] },
-      { path: 'parent-config/child2', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child2', viewport: 'parent' }] }] },
-      { path: 'parent-config/child2@parent', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child2', viewport: 'parent' }] }] },
+      { path: 'parent-config', component: 'parent', viewport: 'default', title: 'ParentConfig' },
+      { path: 'parent-config/:id', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child', viewport: 'parent' }] }], title: (route) => `ParentConfig${route.params.id !== void 0 ? route.params.id : ':id'}Config` },
+      { path: 'parent-config/child-config', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child', viewport: 'parent' }] }], title: 'ParentConfigChildConfig' },
+      { path: 'parent-config/child2', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child2', viewport: 'parent' }] }], title: 'ParentConfigChild2Config' },
+      { path: 'parent-config/child2@parent', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child2', viewport: 'parent' }] }], title: 'ParentConfigChild2@ParentConfig' },
       // { path: 'parent-config/child2(abc)', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child2', viewport: 'parent', parameters: { id: '$id' } }] }] },
       // { path: 'parent-config/child2(abc)@parent', instructions: [{ component: 'parent', viewport: 'default', children: [{ component: 'child2', viewport: 'parent', parameters: { id: '$id' } }] }] },
     ];
+
     let locationPath: string;
+    let browserTitle: string;
     const locationCallback = (type, data, title, path) => {
       // console.log(type, data, title, path);
       locationPath = path;
+      browserTitle = title;
     };
     for (const test of tests) {
       it(`to load route ${test.path} => ${test.url}`, async function () {
@@ -1445,6 +1449,7 @@ describe('Router', function () {
         await $goto(test.path, router, scheduler);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
+        assert.strictEqual(browserTitle, test.title, 'browser.title');
 
         await $teardown();
       });
@@ -1456,6 +1461,7 @@ describe('Router', function () {
         await $goto(test.path, router, scheduler);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
+        assert.strictEqual(browserTitle, test.title, 'browser.title');
       }
       await $teardown();
     });
@@ -1463,12 +1469,14 @@ describe('Router', function () {
     for (const test of tests) {
       const path = test.path.replace(/@\w+/g, '');
       const url = test.url.replace(/@\w+/g, '');
+      const title = test.title.replace(/@Parent/g, '');
       it(`to load route ${path} => ${url}`, async function () {
         const { scheduler, host, router, $teardown } = await $setup(void 0, appDependencies, appRoutes, locationCallback);
 
         await $goto(path, router, scheduler);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
+        assert.strictEqual(browserTitle, title, 'browser.title');
 
         await $teardown();
       });
@@ -1479,9 +1487,11 @@ describe('Router', function () {
       for (const test of tests) {
         const path = test.path.replace(/@\w+/g, '');
         const url = test.url.replace(/@\w+/g, '');
+        const title = test.title.replace(/@Parent/g, '');
         await $goto(path, router, scheduler);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
+        assert.strictEqual(browserTitle, title, 'browser.title');
       }
       await $teardown();
     });
@@ -1503,6 +1513,7 @@ describe('Router', function () {
         await $goto(test.path, router, scheduler);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
+        assert.strictEqual(browserTitle, test.title, 'browser.title');
 
         await $teardown();
       });
@@ -1514,6 +1525,7 @@ describe('Router', function () {
         await $goto(test.path, router, scheduler);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
+        assert.strictEqual(browserTitle, test.title, 'browser.title');
       }
       await $teardown();
     });
@@ -1521,12 +1533,14 @@ describe('Router', function () {
     for (const test of tests) {
       const path = test.path.replace(/@\w+/g, '');
       const url = test.url.replace(/@\w+/g, '');
+      const title = test.title.replace(/@Parent/g, '');
       it(`to load route (without viewports) ${path} => ${url}`, async function () {
         const { scheduler, host, router, $teardown } = await $setup(void 0, appDependencies, appRoutes, locationCallback);
 
         await $goto(path, router, scheduler);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
+        assert.strictEqual(browserTitle, title, 'browser.title');
 
         await $teardown();
       });
@@ -1537,12 +1551,234 @@ describe('Router', function () {
       for (const test of tests) {
         const path = test.path.replace(/@\w+/g, '');
         const url = test.url.replace(/@\w+/g, '');
+        const title = test.title.replace(/@Parent/g, '');
         await $goto(path, router, scheduler);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
+        assert.strictEqual(browserTitle, title, 'browser.title');
       }
       await $teardown();
     });
+  });
+
+  describe('can use title configuration', function () {
+    this.timeout(30000);
+
+    async function $setup(config?, dependencies: any[] = [], routes: IRoute[] = [], stateSpy?) {
+      const ctx = TestContext.createHTMLTestContext();
+
+      const { container, scheduler } = ctx;
+
+      const App = CustomElement.define({
+        name: 'app',
+        template: '<au-viewport></au-viewport>',
+        dependencies
+      }, class {
+        public static routes: IRoute[] = routes;
+      });
+
+      const host = ctx.doc.createElement('div');
+      ctx.doc.body.appendChild(host as any);
+
+      const au = new Aurelia(container)
+        .register(
+          DebugConfiguration,
+          !config ? RouterConfiguration : RouterConfiguration.customize(config),
+          App)
+        .app({ host: host, component: App });
+
+      const router = getModifiedRouter(container);
+      const { _pushState, _replaceState } = spyNavigationStates(router, stateSpy);
+
+      await au.start().wait();
+
+      async function $teardown() {
+        unspyNavigationStates(router, _pushState, _replaceState);
+        router.deactivate();
+        await au.stop().wait();
+        ctx.doc.body.removeChild(host);
+      }
+
+      return { ctx, container, scheduler, host, au, router, $teardown, App };
+    }
+
+    function $removeViewport(instructions) {
+      for (const instruction of instructions) {
+        instruction.viewport = null;
+        instruction.viewportName = null;
+        if (Array.isArray(instruction.nextScopeInstructions)) {
+          $removeViewport(instruction.nextScopeInstructions);
+        }
+      }
+    }
+
+    const Parent = CustomElement.define({ name: 'my-parent', template: '!my-parent!<au-viewport name="parent"></au-viewport>' }, class {
+      public static title: string = 'TheParent';
+      public static routes: IRoute[] = [
+        { path: 'child-config', instructions: [{ component: 'my-child', viewport: 'parent' }], title: 'TheChildConfig' },
+      ];
+    });
+    const Parent2 = CustomElement.define({ name: 'my-parent2', template: '!my-parent2!<au-viewport name="parent2"></au-viewport>' }, class {
+      public static routes: IRoute[] = [
+        { path: 'child-config', instructions: [{ component: 'my-child', viewport: 'parent2' }], title: 'TheChildConfig' },
+      ];
+    });
+    const Child = CustomElement.define({ name: 'my-child', template: `!my-child\${param ? ":" + param : ""}!<au-viewport name="child"></au-viewport>` }, class {
+      public static title = (vm) => `TheChild${vm.param !== void 0 ? `(${vm.param})` : ''}`;
+      public param: string;
+      public enter(params) {
+        if (params.id !== void 0) {
+          this.param = params.id;
+        }
+      }
+    });
+    const Child2 = CustomElement.define({ name: 'my-child2', template: `!my-child2\${param ? ":" + param : ""}!<au-viewport name="child2"></au-viewport>` }, class {
+      public static parameters: string[] = ['id'];
+      public static title = (vm) => `TheChild2${vm.param !== void 0 ? `(${vm.param})` : ''}`;
+      public param: string;
+      public enter(params) {
+        if (params.id !== void 0) {
+          this.param = params.id;
+        }
+      }
+    });
+
+    const titleConfigs: (IRouterTitle | string)[] = [
+      `\${componentTitles}\${appTitleSeparator}Aurelia2`,
+      { appTitle: `Test\${appTitleSeparator}\${componentTitles}`, appTitleSeparator: ' : ', componentTitleOrder: 'top-down', componentTitleSeparator: ' + ', useComponentNames: true },
+      { componentTitleOrder: 'bottom-up', componentTitleSeparator: ' < ', useComponentNames: true, componentPrefix: 'my-' },
+      { useComponentNames: false },
+      { transformTitle: (title, instruction) => title.length === 0 ? '' : instruction instanceof ViewportInstruction ? `C:${title}` : `R:${title}` },
+      { useComponentNames: false, transformTitle: (title, instruction) => title.length === 0 ? '' : instruction instanceof ViewportInstruction ? `C:${title}` : `R:${title}` },
+    ];
+
+    const tests = [
+      { path: '/parent-config', result: '!my-parent!', url: 'parent-config', },
+      { path: '/my-parent2@default', result: '!my-parent2!', url: 'my-parent2', },
+
+      { path: '/parent-config/child-config', result: '!my-parent!!my-child!', url: 'parent-config/child-config', },
+      { path: '/my-parent2@default/my-child2@parent2', result: '!my-parent2!!my-child2!', url: 'my-parent2/my-child2', },
+
+      { path: '/parent-config/my-child2@parent', result: '!my-parent!!my-child2!', url: 'parent-config/my-child2@parent', }, // Specific config
+      { path: '/my-parent2@default/child-config', result: '!my-parent2!!my-child!', url: 'my-parent2/child-config', },
+
+      { path: '/parent-config/abc', result: '!my-parent!!my-child:abc!', url: 'parent-config/abc', },
+      { path: '/my-parent2@default/my-child2(abc)@parent2', result: '!my-parent2!!my-child2:abc!', url: 'my-parent2/my-child2(abc)', },
+    ];
+
+    const titles = [
+      [
+        'TheParentConfig | Aurelia2',
+        'My parent2 | Aurelia2',
+
+        'TheParentConfigChildConfig | Aurelia2',
+        'My parent2 > TheChild2 | Aurelia2',
+
+        'TheParentConfigChild2@ParentConfig | Aurelia2',
+        'My parent2 > TheChildConfig | Aurelia2',
+
+        'TheParentConfig(abc)Config | Aurelia2',
+        'My parent2 > TheChild2(abc) | Aurelia2',
+      ],
+      [
+        'Test : TheParentConfig',
+        'Test : My parent2',
+
+        'Test : TheParentConfigChildConfig',
+        'Test : My parent2 + TheChild2',
+
+        'Test : TheParentConfigChild2@ParentConfig',
+        'Test : My parent2 + TheChildConfig',
+
+        'Test : TheParentConfig(abc)Config',
+        'Test : My parent2 + TheChild2(abc)',
+      ],
+      [
+        'TheParentConfig | Aurelia',
+        'Parent2 | Aurelia',
+
+        'TheParentConfigChildConfig | Aurelia',
+        'TheChild2 < Parent2 | Aurelia',
+
+        'TheParentConfigChild2@ParentConfig | Aurelia',
+        'TheChildConfig < Parent2 | Aurelia',
+
+        'TheParentConfig(abc)Config | Aurelia',
+        'TheChild2(abc) < Parent2 | Aurelia',
+      ],
+      [
+        'TheParentConfig | Aurelia',
+        'Aurelia',
+
+        'TheParentConfigChildConfig | Aurelia',
+        'TheChild2 | Aurelia',
+
+        'TheParentConfigChild2@ParentConfig | Aurelia',
+        'TheChildConfig | Aurelia',
+
+        'TheParentConfig(abc)Config | Aurelia',
+        'TheChild2(abc) | Aurelia',
+      ],
+      [
+        'R:TheParentConfig | Aurelia',
+        'C:My parent2 | Aurelia',
+
+        'R:TheParentConfigChildConfig | Aurelia',
+        'C:My parent2 > C:TheChild2 | Aurelia',
+
+        'R:TheParentConfigChild2@ParentConfig | Aurelia',
+        'C:My parent2 > R:TheChildConfig | Aurelia',
+
+        'R:TheParentConfig(abc)Config | Aurelia',
+        'C:My parent2 > C:TheChild2(abc) | Aurelia',
+      ],
+      [
+        'R:TheParentConfig | Aurelia',
+        'Aurelia',
+
+        'R:TheParentConfigChildConfig | Aurelia',
+        'C:TheChild2 | Aurelia',
+
+        'R:TheParentConfigChild2@ParentConfig | Aurelia',
+        'R:TheChildConfig | Aurelia',
+
+        'R:TheParentConfig(abc)Config | Aurelia',
+        'C:TheChild2(abc) | Aurelia',
+      ],
+    ];
+
+    const appDependencies = [Parent, Parent2, Child, Child2];
+    const appRoutes: IRoute[] = [
+      { path: 'parent-config', component: 'my-parent', viewport: 'default', title: 'TheParentConfig' },
+      { path: 'parent-config/:id', instructions: [{ component: 'my-parent', viewport: 'default', children: [{ component: 'my-child', viewport: 'parent' }] }], title: (route) => `TheParentConfig(${route.params.id !== void 0 ? route.params.id : ':id'})Config` },
+      { path: 'parent-config/child-config', instructions: [{ component: 'my-parent', viewport: 'default', children: [{ component: 'my-child', viewport: 'parent' }] }], title: 'TheParentConfigChildConfig' },
+      { path: 'parent-config/child2', instructions: [{ component: 'my-parent', viewport: 'default', children: [{ component: 'my-child2', viewport: 'parent' }] }], title: 'TheParentConfigChild2Config' },
+      { path: 'parent-config/my-child2@parent', instructions: [{ component: 'my-parent', viewport: 'default', children: [{ component: 'my-child2', viewport: 'parent' }] }], title: 'TheParentConfigChild2@ParentConfig' },
+    ];
+
+    let locationPath: string;
+    let browserTitle: string;
+    const locationCallback = (type, data, title, path) => {
+      // console.log(type, data, title, path);
+      locationPath = path;
+      browserTitle = title;
+    };
+    for (let i = 0; i < titleConfigs.length; i++) {
+      const config = titleConfigs[i];
+      for (let j = 0; j < tests.length; j++) {
+        const test = tests[j];
+        it(`to load route ${test.path} => ${test.url}`, async function () {
+          const { scheduler, host, router, $teardown } = await $setup({ title: config }, appDependencies, appRoutes, locationCallback);
+
+          await $goto(test.path, router, scheduler);
+          assert.strictEqual(host.textContent, test.result, `host.textContent`);
+          assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
+          assert.strictEqual(browserTitle, titles[i][j], 'browser.title');
+
+          await $teardown();
+        });
+      }
+    }
   });
 });
 

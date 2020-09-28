@@ -4,6 +4,7 @@ import { Queue, QueueItem } from './queue';
 import { IRouter } from './router';
 import { ViewportInstruction } from './viewport-instruction';
 import { Scope } from './scope';
+import { ICustomElementViewModel } from '@aurelia/runtime';
 
 /**
  * @internal - Shouldn't be used directly
@@ -23,6 +24,7 @@ export interface INavigatorStore {
 export interface INavigatorViewer {
   activate(options: INavigatorViewerOptions): void;
   deactivate(): void;
+  setTitle(title: string): void;
 }
 /**
  * @internal - Shouldn't be used directly
@@ -65,6 +67,7 @@ export interface IStoredNavigatorEntry {
 
 export interface INavigatorEntry extends IStoredNavigatorEntry {
   fromBrowser?: boolean;
+  origin?: ICustomElementViewModel | Element;
   replacing?: boolean;
   refreshing?: boolean;
   repeating?: boolean;
@@ -275,6 +278,10 @@ export class Navigator {
       state.entries.push(this.toStoreableEntry(entry));
     }
 
+    if (state.currentEntry.title !== void 0) {
+      (this.options!.store! as any).setTitle(state.currentEntry.title);
+    }
+
     if (push) {
       return this.options.store.pushNavigatorState(state);
     } else {
@@ -286,6 +293,7 @@ export class Navigator {
     const {
       previous,
       fromBrowser,
+      origin,
       replacing,
       refreshing,
       untracked,

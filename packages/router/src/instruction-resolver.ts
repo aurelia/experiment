@@ -1,6 +1,7 @@
 import { ComponentParameters, ComponentAppellation, ViewportHandle } from './interfaces';
 import { ViewportInstruction } from './viewport-instruction';
 import { Scope } from './scope';
+import { FoundRoute } from './found-route';
 
 export interface IInstructionResolverOptions {
   separators?: IRouteSeparators;
@@ -147,7 +148,7 @@ export class InstructionResolver {
           excludeCurrentViewport = true;
         }
       }
-      const route: string | null = instruction.route;
+      let route = instruction.route ?? null;
       const nextInstructions: ViewportInstruction[] | null = instruction.nextScopeInstructions;
       let stringified: string = instruction.context;
       // It's a configured route
@@ -158,6 +159,7 @@ export class InstructionResolver {
             ? this.stringifyViewportInstructions(nextInstructions, excludeViewport, viewportContext)
             : '';
         }
+        route = (route as FoundRoute).matching;
         stringified += route.endsWith(this.separators.scope) ? route.slice(0, -this.separators.scope.length) : route;
       } else {
         stringified += this.stringifyAViewportInstruction(instruction, excludeCurrentViewport, excludeCurrentComponent);
@@ -233,10 +235,14 @@ export class InstructionResolver {
     const clones: ViewportInstruction[] = [];
     for (const instruction of instructions) {
       const clone: ViewportInstruction = this.createViewportInstruction(
-        (keepInstances ? instruction.componentInstance : null) || instruction.componentType || instruction.componentName!,
-        keepInstances ? instruction.viewport || instruction.viewportName! : instruction.viewportName!,
+        instruction.componentName!,
+        instruction.viewportName!,
         instruction.typedParameters !== null ? instruction.typedParameters : void 0,
       );
+      if (keepInstances) {
+        clone.setComponent(instruction.componentInstance ?? instruction.componentType ?? instruction.componentName!);
+        clone.setViewport(instruction.viewport ?? instruction.viewportName!);
+      }
       clone.needsViewportDescribed = instruction.needsViewportDescribed;
       clone.route = instruction.route;
       if (context) {

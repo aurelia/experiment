@@ -72,6 +72,7 @@ export {
 
 export {
   IRouterOptions,
+  IRouterTitle,
   IRouter,
   Router,
 } from './router';

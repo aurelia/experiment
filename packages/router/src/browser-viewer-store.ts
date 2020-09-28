@@ -209,4 +209,8 @@ export class BrowserViewerStore implements INavigatorStore, INavigatorViewer {
       await eventTask.execute();
     }
   }
+
+  public setTitle(title: string): void {
+    this.window.document.title = title;
+  }
 }

@@ -45,7 +45,7 @@ export class App implements IViewModel {
   public async beforeBind() {
     // this.router.guardian.addGuard(
     this.router.addHook(
-      () => {
+      async () => {
         if (this.state.isAuthenticated) {
           return true;
         }
@@ -86,30 +86,30 @@ export class App implements IViewModel {
         title: 'Home',
       },
       {
-        condition: this.authenticated,
+        condition: () => this.authenticated(),
         route: `editor(type=new)`,
         title: '<i class="ion-compose"></i>&nbsp;New Post',
       },
       {
-        condition: this.authenticated,
+        condition: () => this.authenticated(),
         route: Settings,
         title: '<i class="ion-gear-a"></i>&nbsp;Settings',
       },
       {
         compareParameters: true,
-        condition: this.notAuthenticated,
+        condition: () => this.notAuthenticated(),
         route: `auth(type=login)`,
         title: 'Sign in',
       },
       {
         compareParameters: true,
-        condition: this.notAuthenticated,
+        condition: () => this.notAuthenticated(),
         route: `auth(type=register)`,
         title: 'Sign up',
       },
       {
         compareParameters: true,
-        condition: this.authenticated,
+        condition: () => this.authenticated(),
         route: `profile(${this.state.currentUser.username})`,
         title: `${this.state.currentUser.username}`,
       },
@@ -117,7 +117,7 @@ export class App implements IViewModel {
   }
 
   public authenticated(): boolean {
-    return this.state.currentUser && this.state.isAuthenticated;
+    return this.state?.currentUser && this.state?.isAuthenticated;
   }
   public notAuthenticated(): boolean {
     return !this.authenticated();

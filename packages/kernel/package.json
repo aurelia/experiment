@@ -34,7 +34,8 @@
     "access": "public"
   },
   "dependencies": {
-    "@aurelia/metadata": "0.7.0"
+    "@aurelia/metadata": "0.7.0",
+    "merge-anything": "^3.0.5"
   },
   "devDependencies": {
     "typescript": "^3.9.3"

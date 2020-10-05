@@ -25,7 +25,6 @@ export {
   Transformer,
   newInstanceForScope,
   newInstanceOf,
-  DefaultContainerConfiguration,
   DefaultResolver,
   IContainerConfiguration,
 } from './di';

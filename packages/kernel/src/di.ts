@@ -1,15 +1,15 @@
-import { Metadata, isObject, applyMetadataPolyfill } from '@aurelia/metadata';
+import { Class, Constructable } from './interfaces';
+import { Metadata, applyMetadataPolyfill, isObject } from '@aurelia/metadata';
+import { isArrayIndex, isNativeFunction } from './functions';
+
+import { PLATFORM } from './platform';
+import { Protocol } from './resource';
+import { Reporter } from './reporter';
+import { merge } from 'merge-anything';
 
 applyMetadataPolyfill(Reflect);
 
-import { isArrayIndex, isNativeFunction } from './functions';
-import { Class, Constructable } from './interfaces';
-import { PLATFORM } from './platform';
-import { Reporter } from './reporter';
-import { Protocol } from './resource';
-
 /* eslint-disable @typescript-eslint/no-explicit-any */
-
 export type ResolveCallback<T = any> = (handler: IContainer, requestor: IContainer, resolver: IResolver<T>) => T;
 
 export type InterfaceSymbol<K = any> = (target: Injectable<K>, property: string, index: number) => void;
@@ -145,22 +145,21 @@ function cloneArrayWithPossibleProps<T>(source: readonly T[]): T[] {
 }
 
 export interface IContainerConfiguration {
-  defaultResolver(key: Key, handler: IContainer): IResolver;
+  defaultResolver?(key: Key, handler: IContainer): IResolver;
 }
 
 export const DefaultResolver = {
   none(key: Key): IResolver {throw Error(`${key.toString()} not registered, did you forget to add @singleton()?`);},
   singleton(key: Key): IResolver {return new Resolver(key, ResolverStrategy.singleton, key);},
-  transient(key: Key): IResolver {return new Resolver(key, ResolverStrategy.transient, key);},
 };
 
-export const DefaultContainerConfiguration: IContainerConfiguration = {
+const DefaultContainerConfiguration: Required<IContainerConfiguration> = {
   defaultResolver: DefaultResolver.singleton,
 };
 
 export const DI = {
-  createContainer(config: IContainerConfiguration = DefaultContainerConfiguration): IContainer {
-      return new Container(null, config);
+  createContainer(config: IContainerConfiguration = {}): IContainer {
+      return new Container(null, merge(DefaultContainerConfiguration, config));
   },
   getDesignParamtypes(Type: Constructable | Injectable): readonly Key[] | undefined {
     return Metadata.getOwn('design:paramtypes', Type);
@@ -893,7 +892,7 @@ export class Container implements IContainer {
 
   public constructor(
     private readonly parent: Container | null,
-    private readonly config: IContainerConfiguration = DefaultContainerConfiguration,
+    private readonly config: Required<IContainerConfiguration>,
   ) {
     if (parent === null) {
       this.root = this;
@@ -1150,8 +1149,8 @@ export class Container implements IContainer {
     Protocol.annotation.appendTo(key, factoryAnnotationKey);
   }
 
-  public createChild(config?: IContainerConfiguration): IContainer {
-    return new Container(this, config ?? this.config);
+  public createChild(config: IContainerConfiguration = {}): IContainer {
+    return new Container(this, merge(this.config, config));
   }
 
   public disposeResolvers() {

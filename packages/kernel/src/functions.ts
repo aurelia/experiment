@@ -1,5 +1,6 @@
-import { PLATFORM } from './platform';
 import { Constructable, Overwrite } from './interfaces';
+
+import { PLATFORM } from './platform';
 
 const isNumericLookup: Record<string, boolean> = {};
 

@@ -1,4 +1,9 @@
-import { HookManager } from './hook-manager.js';
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 
 export {
   ILinkHandlerOptions,
@@ -16,9 +21,8 @@ export {
   IRouteableComponent,
   RouteableComponentType,
   IViewportInstruction,
-  NavigationInstruction,
+  LoadInstruction,
   ReentryBehavior,
-  IRoute,
 } from './interfaces.js';
 
 export {
@@ -57,12 +61,13 @@ export {
   INavigatorState,
   INavigatorStore,
   INavigatorViewer,
-  INavigatorViewerEvent,
+  NavigatorViewerEvent,
   Navigator,
 } from './navigator.js';
 
 export {
   Runner,
+  Step,
 } from './runner.js';
 
 export {
@@ -70,6 +75,15 @@ export {
   IQueueOptions,
   Queue,
 } from './queue.js';
+
+export {
+  IRoute,
+  Route,
+} from './route.js';
+
+export {
+  route,
+} from './decorators/route.js';
 
 export {
   RouteRecognizer,
@@ -92,6 +106,11 @@ export {
   IRouterTitle,
   RouterOptions,
 } from './router-options.js';
+
+export {
+  Routes,
+  routes,
+} from './decorators/routes.js';
 
 export {
   IViewportOptions,

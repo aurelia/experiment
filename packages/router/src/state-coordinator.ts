@@ -1,3 +1,9 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 /* eslint-disable @typescript-eslint/no-empty-function */
 import { Navigation } from './navigation.js';
 import { OpenPromise } from './open-promise.js';
@@ -48,7 +54,7 @@ export class StateCoordinator<T, S> {
     this.checkSyncState(state);
   }
 
-  public syncState(state: S, entity: T | null = null): void | Promise<void> {
+  public waitForSyncState(state: S, entity: T | null = null): void | Promise<void> {
     const openPromise = this.syncStates.get(state);
     if (openPromise === void 0) {
       return;
@@ -61,13 +67,16 @@ export class StateCoordinator<T, S> {
         ent.syncPromise = new OpenPromise();
         ent.checkedStates.push(state);
         this.checkedSyncStates.add(state);
-        Promise.resolve().then(() => { this.checkSyncState(state); }).catch(err => { throw err; });
+        Promise.resolve().then(() => {
+          // console.log('then', 'syncState');
+          this.checkSyncState(state);
+        }).catch(err => { throw err; });
         return ent.syncPromise.promise;
       }
     }
 
     // this.checkSyncState(state);
-    return openPromise.promise;
+    return openPromise.isPending ? openPromise.promise : void 0;
   }
 
   public checkingSyncState(state: S): boolean {

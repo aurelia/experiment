@@ -123,22 +123,22 @@ describe('LinkHandler', function () {
   if (PLATFORM.navigator.userAgent.includes('jsdom')) {
     // TODO: figure out why it doesn't work in nodejs and fix it
     const tests = [
-      { useHref: true, href: true, goto: true, result: 'goto' },
-      { useHref: true, href: false, goto: true, result: 'goto' },
-      { useHref: true, href: true, goto: false, result: 'href' },
-      { useHref: true, href: false, goto: false, result: null },
+      { useHref: true, href: true, load: true, result: 'load' },
+      { useHref: true, href: false, load: true, result: 'load' },
+      { useHref: true, href: true, load: false, result: 'href' },
+      { useHref: true, href: false, load: false, result: null },
 
-      { useHref: false, href: true, goto: true, result: 'goto' },
-      { useHref: false, href: false, goto: true, result: 'goto' },
-      { useHref: false, href: true, goto: false, result: null },
-      { useHref: false, href: false, goto: false, result: null },
+      { useHref: false, href: true, load: true, result: 'load' },
+      { useHref: false, href: false, load: true, result: 'load' },
+      { useHref: false, href: true, load: false, result: null },
+      { useHref: false, href: false, load: false, result: null },
     ];
 
     for (const test of tests) {
-      it(`returns the right instruction${test.useHref ? ' using href' : ''}:${test.href ? ' href' : ''}${test.goto ? ' goto' : ''}`, async function () {
+      it(`returns the right instruction${test.useHref ? ' using href' : ''}:${test.href ? ' href' : ''}${test.load ? ' load' : ''}`, async function () {
         const App = CustomElement.define({
           name: 'app',
-          template: `<a ${test.href ? 'href="href"' : ''} ${test.goto ? 'goto="goto"' : ''}>Link</a>`
+          template: `<a ${test.href ? 'href="href"' : ''} ${test.load ? 'load="load"' : ''}>Link</a>`
         });
 
         const { sut, tearDown, ctx } = await setupApp(App);

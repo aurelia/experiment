@@ -1,8 +1,14 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 import { ICustomElementViewModel } from '@aurelia/runtime-html';
 import { INavigationFlags } from './navigator.js';
 import { ViewportInstruction } from './viewport-instruction.js';
 import { Scope } from './scope.js';
-import { IRoute } from './interfaces.js';
+import { Route } from './route.js';
 
 export interface INavigation extends IStoredNavigation {
   // INavigatorEntry
@@ -25,7 +31,7 @@ export interface IStoredNavigation {
   scope?: Scope | null;
   index?: number;
   firstEntry?: boolean; // Index might change to not require first === 0, firstEntry should be reliable
-  route?: IRoute;
+  route?: Route;
   path?: string;
   title?: string;
   query?: string;
@@ -54,7 +60,7 @@ export class Navigation {
   public scope?: Scope | null;
   public index?: number;
   public firstEntry?: boolean; // Index might change to not require first === 0, firstEntry should be reliable
-  public route?: IRoute;
+  public route?: Route;
   public path?: string;
   public title?: string;
   public query?: string;

@@ -1,11 +1,18 @@
-import { IRoute, IRouteableComponent } from './interfaces.js';
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
+import { ICustomElementViewModel } from '@aurelia/runtime-html';
+import { IRouteableComponent } from './interfaces.js';
 import { Queue, QueueItem } from './queue.js';
 import { IRouter } from './router.js';
 import { ViewportInstruction } from './viewport-instruction.js';
 import { Scope } from './scope.js';
-import { ICustomElementViewModel } from '@aurelia/runtime-html';
 import { Navigation, IStoredNavigation } from './navigation.js';
 import { Runner } from './runner.js';
+import { IRoute } from './route.js';
 
 /**
  * @internal - Shouldn't be used directly
@@ -31,25 +38,24 @@ export interface INavigatorViewer {
  * @internal - Shouldn't be used directly
  */
 export interface INavigatorViewerOptions {
-  callback(ev: INavigatorViewerEvent): void;
 }
 
 /**
  * @internal - Shouldn't be used directly
  */
-export interface INavigatorViewerState {
-  path: string;
-  query: string;
-  hash: string;
-  instruction: string;
+export class NavigatorViewerState {
+  public path!: string;
+  public query!: string;
+  public hash!: string;
+  public instruction!: string;
 }
 
 /**
  * @internal - Shouldn't be used directly
  */
-export interface INavigatorViewerEvent extends INavigatorViewerState {
-  event: PopStateEvent;
-  state?: INavigatorState;
+export class NavigatorViewerEvent extends NavigatorViewerState {
+  public event!: PopStateEvent;
+  public state?: INavigatorState;
 }
 
 export interface IStoredNavigatorEntry {
@@ -447,7 +453,8 @@ export class Navigator {
       return;
     }
     if (!excludeComponents.some(exclude => exclude === component)) {
-      return Runner.run(
+      // console.log('>>> Runner.run', 'freeContent');
+      return Runner.run(null,
         () => viewport.freeContent(component),
         () => {
           alreadyDone.push(component);
@@ -456,7 +463,8 @@ export class Navigator {
     }
     if (instruction.nextScopeInstructions !== null) {
       for (const nextInstruction of instruction.nextScopeInstructions) {
-        return Runner.run(
+        // console.log('>>> Runner.run', 'freeInstructionComponents');
+        return Runner.run(null,
           () => this.freeInstructionComponents(nextInstruction, excludeComponents, alreadyDone)
         );
       }

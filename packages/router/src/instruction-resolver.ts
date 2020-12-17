@@ -1,3 +1,9 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 import { ComponentParameters, ComponentAppellation, ViewportHandle } from './interfaces.js';
 import { ViewportInstruction } from './viewport-instruction.js';
 import { Scope } from './scope.js';
@@ -97,6 +103,7 @@ export class InstructionResolver {
   public createViewportInstruction(component: ComponentAppellation | Promise<ComponentAppellation>, viewport?: ViewportHandle, parameters?: ComponentParameters, ownsScope: boolean = true, nextScopeInstructions: ViewportInstruction[] | null = null): ViewportInstruction | Promise<ViewportInstruction> {
     if (component instanceof Promise) {
       return component.then((resolvedComponent) => {
+        // console.log('then', 'createViewportInstruction');
         return this.createViewportInstruction(resolvedComponent, viewport, parameters, ownsScope, nextScopeInstructions);
       });
     }
@@ -244,7 +251,7 @@ export class InstructionResolver {
     const clones: ViewportInstruction[] = [];
     for (const instruction of instructions) {
       const clone = this.createViewportInstruction(
-        instruction.componentName!,
+        instruction.componentType ?? instruction.componentName!,
         instruction.viewportName!,
         instruction.typedParameters !== null ? instruction.typedParameters : void 0,
       ) as ViewportInstruction;

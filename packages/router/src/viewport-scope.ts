@@ -1,5 +1,11 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 import { CustomElementType } from '@aurelia/runtime-html';
-import { ComponentAppellation, IRoute, RouteableComponentType, NavigationInstruction } from './interfaces.js';
+import { LoadInstruction, RouteableComponentType } from './interfaces.js';
 import { IRouter } from './router.js';
 import { ViewportInstruction } from './viewport-instruction.js';
 import { IScopeOwner, IScopeOwnerOptions, NextContentAction, Scope } from './scope.js';
@@ -8,6 +14,8 @@ import { Navigation } from './navigation.js';
 import { IConnectedCustomElement } from './resources/viewport.js';
 import { NavigationCoordinator } from './navigation-coordinator.js';
 import { Runner } from './runner.js';
+import { Routes } from './decorators/routes.js';
+import { IRoute, Route } from './route.js';
 
 export interface IViewportScopeOptions extends IScopeOwnerOptions {
   catches?: string | string[];
@@ -147,7 +155,7 @@ export class ViewportScope implements IScopeOwner {
   public transition(coordinator: NavigationCoordinator): void {
     // console.log('ViewportScope swap'/*, this, coordinator*/);
 
-    Runner.run(
+    Runner.run(null,
       () => coordinator.addEntityState(this, 'guardedUnload'),
       () => coordinator.addEntityState(this, 'guardedLoad'),
       () => coordinator.addEntityState(this, 'guarded'),
@@ -166,7 +174,7 @@ export class ViewportScope implements IScopeOwner {
   public canUnload(): boolean | Promise<boolean> {
     return true;
   }
-  public canLoad(): boolean | NavigationInstruction | NavigationInstruction[] | Promise<boolean | NavigationInstruction | NavigationInstruction[]> {
+  public canLoad(): boolean | LoadInstruction | LoadInstruction[] | Promise<boolean | LoadInstruction | LoadInstruction[]> {
     return true;
   }
 
@@ -260,9 +268,16 @@ export class ViewportScope implements IScopeOwner {
     }
   }
 
-  public getRoutes(): IRoute[] | null {
+  public getRoutes(): Route[] | null {
     if (this.rootComponentType !== null) {
-      return (this.rootComponentType as RouteableComponentType & { routes: IRoute[] }).routes;
+      // TODO: Fix it so that this isn't necessary!
+      const Type = this.rootComponentType.constructor === this.rootComponentType.constructor.constructor
+        ? this.rootComponentType
+        : this.rootComponentType.constructor as RouteableComponentType;
+
+      const routes = Routes.getConfiguration(Type);
+      // console.log('RoutesConfiguration.getConfiguration', routes);
+      return routes;
     }
     return null;
   }

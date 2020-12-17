@@ -1,3 +1,9 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 import { IContainer, Key } from '@aurelia/kernel';
 import { CustomElement } from '@aurelia/runtime-html';
 import { ComponentAppellation, ComponentParameters, IRouteableComponent, RouteableComponentType, ViewportHandle } from './interfaces.js';
@@ -193,15 +199,17 @@ export class ViewportInstruction {
       return this.componentType;
     }
     if (this.componentName !== null
-      && typeof this.componentName === 'string'
-      && container !== null
-      && container.has<RouteableComponentType>(CustomElement.keyFrom(this.componentName), true)
-    ) {
-      const resolver = container.getResolver<RouteableComponentType>(CustomElement.keyFrom(this.componentName));
-      if (resolver !== null && resolver.getFactory !== void 0) {
-        const factory = resolver.getFactory(container);
-        if (factory) {
-          return factory.Type;
+      && typeof this.componentName === 'string') {
+      if (container === null) {
+        throw new Error(`No container available when trying to resolve component '${this.componentName}'!`);
+      }
+      if (container.has<RouteableComponentType>(CustomElement.keyFrom(this.componentName), true)) {
+        const resolver = container.getResolver<RouteableComponentType>(CustomElement.keyFrom(this.componentName));
+        if (resolver !== null && resolver.getFactory !== void 0) {
+          const factory = resolver.getFactory(container);
+          if (factory) {
+            return factory.Type;
+          }
         }
       }
     }

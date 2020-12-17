@@ -1,4 +1,4 @@
-import { IRouter, RouterConfiguration, IRoute, IRouterTitle, ViewportInstruction } from '@aurelia/router';
+import { IRouter, RouterConfiguration, IRoute, IRouterTitle, ViewportInstruction, routes } from '@aurelia/router';
 import { CustomElement, customElement, IPlatform, Aurelia } from '@aurelia/runtime-html';
 import { assert, MockBrowserHistoryLocation, TestContext } from '@aurelia/testing';
 
@@ -179,7 +179,7 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'foo', `host.textContent`);
 
     await tearDown();
@@ -205,9 +205,9 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'foo', `host.textContent`);
-    await $goto('-@left', router, platform);
+    await $load('-@left', router, platform);
     assert.notIncludes(host.textContent, 'foo', `host.textContent`);
 
     await tearDown();
@@ -218,11 +218,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
-    await $goto('bar@right', router, platform);
+    await $load('bar@right', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
-    await $goto('-', router, platform);
+    await $load('-', router, platform);
     assert.notIncludes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: bar', `host.textContent`);
 
@@ -235,7 +235,7 @@ describe('Router', function () {
     const { platform, host, router, tearDown } = await createFixture();
 
     const historyLength = router.navigation.history.length;
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'foo', `host.textContent`);
     assert.strictEqual(router.navigation.history.length, historyLength + 1, `router.navigation.history.length`);
 
@@ -252,7 +252,7 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('bar@right', router, platform);
+    await $load('bar@right', router, platform);
     assert.includes(host.textContent, 'bar', `host.textContent`);
 
     await tearDown();
@@ -263,11 +263,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: bar', `host.textContent`);
 
-    await $goto('bar@right', router, platform);
+    await $load('bar@right', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
 
@@ -279,11 +279,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: bar', `host.textContent`);
 
-    await $goto('bar@right', router, platform);
+    await $load('bar@right', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
 
@@ -299,11 +299,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: bar', `host.textContent`);
 
-    await $goto('bar@left', router, platform);
+    await $load('bar@left', router, platform);
     assert.notIncludes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
 
@@ -325,11 +325,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: bar', `host.textContent`);
 
-    await $goto('bar@right', router, platform);
+    await $load('bar@right', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
 
@@ -351,7 +351,7 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left+bar@right', router, platform);
+    await $load('foo@left+bar@right', router, platform);
     assert.includes(host.textContent, 'foo', `host.textContent`);
     assert.includes(host.textContent, 'bar', `host.textContent`);
 
@@ -365,11 +365,11 @@ describe('Router', function () {
 
     quxCantUnload = 1;
 
-    await $goto('baz@left+qux@right', router, platform);
+    await $load('baz@left+qux@right', router, platform);
     assert.includes(host.textContent, 'Viewport: baz', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: qux', `host.textContent`);
 
-    await $goto('foo@left+bar@right', router, platform);
+    await $load('foo@left+bar@right', router, platform);
     assert.includes(host.textContent, 'Viewport: baz', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: qux', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: foo', `host.textContent`);
@@ -385,12 +385,12 @@ describe('Router', function () {
 
     quxCantUnload = 1;
 
-    await $goto('foo@left/qux@foo+uier@right', router, platform);
+    await $load('foo@left/qux@foo+uier@right', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: qux', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: uier', `host.textContent`);
 
-    await $goto('bar@left+baz@right', router, platform);
+    await $load('bar@left+baz@right', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: qux', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: uier', `host.textContent`);
@@ -405,8 +405,8 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    // await $goto('foo@left+bar@right+baz@foo+qux@bar', router, platform);
-    await $goto('foo@left/baz@foo+bar@right/qux@bar', router, platform);
+    // await $load('foo@left+bar@right+baz@foo+qux@bar', router, platform);
+    await $load('foo@left/baz@foo+bar@right/qux@bar', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: baz', `host.textContent`);
@@ -420,7 +420,7 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture({ useHref: true });
 
-    await $goto('foo@left', router, platform);
+    await $load('foo@left', router, platform);
     assert.includes(host.textContent, 'foo', `host.textContent`);
 
     (host.getElementsByTagName('SPAN')[0] as HTMLElement).parentElement.click();
@@ -432,7 +432,7 @@ describe('Router', function () {
     await tearDown();
   });
 
-  it('handles anchor click with goto', async function () {
+  it('handles anchor click with load', async function () {
     this.timeout(5000);
 
     const tests = [
@@ -451,11 +451,12 @@ describe('Router', function () {
         if (params.name) { this.name = params.name; }
       }
     });
+    @routes([{ path: 'a-route-decorator', component: 'my-decorated-component' }])
     @customElement({
       name: 'app',
       dependencies: [IdName],
       template: `
-      ${tests.map(test => `<a goto${test.bind ? '.bind' : ''}="${test.value}">${test.value}</a>`).join('<br>')}
+      ${tests.map(test => `<a load${test.bind ? '.bind' : ''}="${test.value}">${test.value}</a>`).join('<br>')}
       <br>
       <au-viewport></au-viewport>
       `}) class App {
@@ -489,10 +490,10 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('corge@left', router, platform);
+    await $load('corge@left', router, platform);
     assert.includes(host.textContent, 'Viewport: corge', `host.textContent`);
 
-    await $goto('corge@left/baz', router, platform);
+    await $load('corge@left/baz', router, platform);
     assert.includes(host.textContent, 'Viewport: baz', `host.textContent`);
 
     await tearDown();
@@ -503,9 +504,9 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('foo@left', router, platform);
-    await $goto('bar@left', router, platform);
-    await $goto('baz@left', router, platform);
+    await $load('foo@left', router, platform);
+    await $load('bar@left', router, platform);
+    await $load('baz@left', router, platform);
 
     await tearDown();
   });
@@ -515,11 +516,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('bar(123)@left', router, platform);
+    await $load('bar(123)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [123]', `host.textContent`);
 
-    await $goto('bar(456)@left', router, platform);
+    await $load('bar(456)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [456]', `host.textContent`);
 
@@ -531,11 +532,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('bar(id=123)@left', router, platform);
+    await $load('bar(id=123)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [123]', `host.textContent`);
 
-    await $goto('bar(id=456)@left', router, platform);
+    await $load('bar(id=456)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [456]', `host.textContent`);
 
@@ -547,11 +548,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('bar(123)@left', router, platform);
+    await $load('bar(123)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [123]', `host.textContent`);
 
-    await $goto('bar(456)@right', router, platform);
+    await $load('bar(456)@right', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [123]', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [456]', `host.textContent`);
@@ -564,7 +565,7 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('corge@left/baz(123)', router, platform);
+    await $load('corge@left/baz(123)', router, platform);
     assert.includes(host.textContent, 'Viewport: corge', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: baz', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [123]', `host.textContent`);
@@ -577,7 +578,7 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('corge@left/baz(id=123)', router, platform);
+    await $load('corge@left/baz(id=123)', router, platform);
 
     assert.includes(host.textContent, 'Viewport: corge', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: baz', `host.textContent`);
@@ -591,12 +592,12 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('bar(123,OneTwoThree)@left', router, platform);
+    await $load('bar(123,OneTwoThree)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [123]', `host.textContent`);
     assert.includes(host.textContent, 'Parameter name: [OneTwoThree]', `host.textContent`);
 
-    await $goto('bar(456,FourFiveSix)@left', router, platform);
+    await $load('bar(456,FourFiveSix)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [456]', `host.textContent`);
     assert.includes(host.textContent, 'Parameter name: [FourFiveSix]', `host.textContent`);
@@ -609,12 +610,12 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('bar(id=123,name=OneTwoThree)@left', router, platform);
+    await $load('bar(id=123,name=OneTwoThree)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [123]', `host.textContent`);
     assert.includes(host.textContent, 'Parameter name: [OneTwoThree]', `host.textContent`);
 
-    await $goto('bar(name=FourFiveSix,id=456)@left', router, platform);
+    await $load('bar(name=FourFiveSix,id=456)@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [456]', `host.textContent`);
     assert.includes(host.textContent, 'Parameter name: [FourFiveSix]', `host.textContent`);
@@ -627,11 +628,11 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('bar@left?id=123', router, platform);
+    await $load('bar@left?id=123', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [123]', `host.textContent`);
 
-    await $goto('bar@left?id=456&name=FourFiveSix', router, platform);
+    await $load('bar@left?id=456&name=FourFiveSix', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [456]', `host.textContent`);
     assert.includes(host.textContent, 'Parameter name: [FourFiveSix]', `host.textContent`);
@@ -642,18 +643,29 @@ describe('Router', function () {
   it('overrides querystring with parameter', async function () {
     this.timeout(5000);
 
-    const { platform, host, router, tearDown } = await createFixture();
+    let locationPath: string;
+    let browserTitle: string;
+    const locationCallback = (type, data, title, path) => {
+      // console.log(type, data, title, path);
+      locationPath = path;
+      browserTitle = title;
+    };
 
-    await $goto('bar(456)@left?id=123', router, platform);
+    const { platform, host, router, tearDown } = await createFixture(void 0, void 0, locationCallback);
+
+    let url = 'bar(456)@left?id=123';
+    await $load(url, router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [456]', `host.textContent`);
 
-    await $goto('bar(456,FourFiveSix)@left?id=123&name=OneTwoThree', router, platform);
+    url = 'bar(456,FourFiveSix)@left?id=123&name=OneTwoThree';
+    await $load(url, router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [456]', `host.textContent`);
     assert.includes(host.textContent, 'Parameter name: [FourFiveSix]', `host.textContent`);
 
-    await $goto('bar(name=SevenEightNine,id=789)@left?id=123&name=OneTwoThree', router, platform);
+    url = 'bar(name=SevenEightNine,id=789)@left?id=123&name=OneTwoThree';
+    await $load(url, router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.includes(host.textContent, 'Parameter id: [789]', `host.textContent`);
     assert.includes(host.textContent, 'Parameter name: [SevenEightNine]', `host.textContent`);
@@ -666,19 +678,19 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('plugh(123)@left', router, platform);
+    await $load('plugh(123)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 123', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 1', `host.textContent`);
 
-    await $goto('plugh(123)@left', router, platform);
+    await $load('plugh(123)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 123', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 1', `host.textContent`);
 
-    await $goto('plugh(456)@left', router, platform);
+    await $load('plugh(456)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 456', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 1', `host.textContent`);
 
-    await $goto('plugh(456)@left', router, platform);
+    await $load('plugh(456)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 456', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 1', `host.textContent`);
 
@@ -692,51 +704,51 @@ describe('Router', function () {
 
     plughReentryBehavior = 'default';
     // This should default
-    await $goto('plugh(123)@left', router, platform);
+    await $load('plugh(123)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 123', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 1', `host.textContent`);
 
     let component = router.allViewports()[0].content.content.componentInstance;
     component.reentryBehavior = 'load';
     // This should load
-    await $goto('plugh(123)@left', router, platform);
+    await $load('plugh(123)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 123', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 2', `host.textContent`);
 
     component.reentryBehavior = 'refresh';
     // This should refresh
-    await $goto('plugh(456)@left', router, platform);
+    await $load('plugh(456)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 456', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 1', `host.textContent`);
     component = router.allViewports()[0].content.content.componentInstance;
 
     component.reentryBehavior = 'default';
     // This should default
-    await $goto('plugh(456)@left', router, platform);
+    await $load('plugh(456)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 456', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 1', `host.textContent`);
 
     component.reentryBehavior = 'load';
     // This should load
-    await $goto('plugh(123)@left', router, platform);
+    await $load('plugh(123)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 123', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 2', `host.textContent`);
 
     component.reentryBehavior = 'disallow';
     // This should disallow
-    await $goto('plugh(456)@left', router, platform);
+    await $load('plugh(456)@left', router, platform);
     assert.includes(host.textContent, 'Parameter: 123', `host.textContent`);
     assert.includes(host.textContent, 'Entry: 2', `host.textContent`);
 
     await tearDown();
   });
 
-  it.skip('loads default when added by if condition becoming true', async function () {
+  it('loads default when added by if condition becoming true', async function () {
     this.timeout(5000);
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('grault@left', router, platform);
+    await $load('grault@left', router, platform);
     assert.includes(host.textContent, 'toggle', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: grault', `host.textContent`);
     assert.notIncludes(host.textContent, 'garply', `host.textContent`);
@@ -772,7 +784,7 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('grault@left', router, platform);
+    await $load('grault@left', router, platform);
     assert.includes(host.textContent, 'toggle', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: grault', `host.textContent`);
     assert.notIncludes(host.textContent, 'garply', `host.textContent`);
@@ -789,12 +801,12 @@ describe('Router', function () {
     await platform.domWriteQueue.yield();
 
     // NOT going to work since it loads non-stateful parent grault
-    await $goto('grault@left/corge@grault', router, platform);
+    await $load('grault@left/corge@grault', router, platform);
 
     assert.notIncludes(host.textContent, 'garply', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: corge', `host.textContent`);
 
-    await $goto('grault@left/garply@grault', router, platform);
+    await $load('grault@left/garply@grault', router, platform);
 
     assert.notIncludes(host.textContent, 'Viewport: corge', `host.textContent`);
     assert.includes(host.textContent, 'garply', `host.textContent`);
@@ -809,7 +821,7 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('waldo@left', router, platform);
+    await $load('waldo@left', router, platform);
     assert.includes(host.textContent, 'Viewport: waldo', `host.textContent`);
     assert.includes(host.textContent, 'toggle', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: grault', `host.textContent`);
@@ -824,12 +836,12 @@ describe('Router', function () {
 
     (host as any).getElementsByTagName('INPUT')[1].value = 'asdf';
 
-    await $goto('waldo@left/foo@waldo', router, platform);
+    await $load('waldo@left/foo@waldo', router, platform);
 
     assert.notIncludes(host.textContent, 'Viewport: grault', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
 
-    await $goto('waldo@left/grault@waldo', router, platform);
+    await $load('waldo@left/grault@waldo', router, platform);
 
     assert.notIncludes(host.textContent, 'Viewport: corge', `host.textContent`);
     assert.includes(host.textContent, 'Viewport: grault', `host.textContent`);
@@ -854,7 +866,7 @@ describe('Router', function () {
 
     const values = ['parent', 'child', false, 'child-hidden', 'grandchild', 'grandgrandchild'];
 
-    await $goto('parent@left/child@parent/grandchild@child', router, platform);
+    await $load('parent@left/child@parent/grandchild@child', router, platform);
 
     assert.includes(host.textContent, '|parent|', `host.textContent`);
     assert.includes(host.textContent, '|child|', `host.textContent`);
@@ -873,7 +885,7 @@ describe('Router', function () {
       }
     }
 
-    await $goto('parent@left/sibling@parent', router, platform);
+    await $load('parent@left/sibling@parent', router, platform);
 
     assert.includes(host.textContent, '|parent|', `host.textContent`);
     assert.includes(host.textContent, '|sibling|', `host.textContent`);
@@ -905,13 +917,13 @@ describe('Router', function () {
 
     const { platform, host, router, tearDown } = await createFixture();
 
-    await $goto('quux@left', router, platform);
+    await $load('quux@left', router, platform);
     assert.includes(host.textContent, 'Viewport: quux', `host.textContent`);
 
-    await $goto('quux@quux!', router, platform);
+    await $load('quux@quux!', router, platform);
     assert.includes(host.textContent, 'Viewport: quux', `host.textContent`);
 
-    await $goto('quux@left/foo@quux!', router, platform);
+    await $load('quux@left/foo@quux!', router, platform);
     assert.includes(host.textContent, 'Viewport: foo', `host.textContent`);
 
     (host.getElementsByTagName('SPAN')[0] as HTMLElement).click();
@@ -920,7 +932,7 @@ describe('Router', function () {
 
     assert.includes(host.textContent, 'Viewport: baz', `host.textContent`);
 
-    await $goto('bar@left', router, platform);
+    await $load('bar@left', router, platform);
     assert.includes(host.textContent, 'Viewport: bar', `host.textContent`);
     assert.notIncludes(host.textContent, 'Viewport: quux', `host.textContent`);
 
@@ -970,7 +982,7 @@ describe('Router', function () {
 
       container.register(Global);
 
-      await $goto('global', router, platform);
+      await $load('global', router, platform);
 
       assert.match(host.textContent, /.*global.*/, `host.textContent`);
 
@@ -981,7 +993,7 @@ describe('Router', function () {
       const Local = CustomElement.define({ name: 'local', template: 'local' }, null);
       const { platform, host, router, $teardown } = await $setup([Local]);
 
-      await $goto('local', router, platform);
+      await $load('local', router, platform);
 
       assert.match(host.textContent, /.*local.*/, `host.textContent`);
 
@@ -993,7 +1005,7 @@ describe('Router', function () {
       const Local1 = CustomElement.define({ name: 'local1', template: 'local1<au-viewport name="one"></au-viewport>', dependencies: [Local2] }, null);
       const { platform, host, router, $teardown } = await $setup([Local1]);
 
-      await $goto('local1/local2', router, platform);
+      await $load('local1/local2', router, platform);
 
       assert.match(host.textContent, /.*local1.*local2.*/, `host.textContent`);
 
@@ -1007,7 +1019,7 @@ describe('Router', function () {
       const { platform, host, router, container, $teardown } = await $setup([Local1]);
       container.register(Global3);
 
-      await $goto('local1/local2/global3', router, platform);
+      await $load('local1/local2/global3', router, platform);
 
       assert.match(host.textContent, /.*local1.*local2.*global3.*/, `host.textContent`);
 
@@ -1021,7 +1033,7 @@ describe('Router', function () {
       const { platform, host, router, container, $teardown } = await $setup([Local1]);
       container.register(Global2);
 
-      await $goto('local1/global2/local3', router, platform);
+      await $load('local1/global2/local3', router, platform);
 
       assert.match(host.textContent, /.*local1.*global2.*local3.*/, `host.textContent`);
 
@@ -1035,7 +1047,7 @@ describe('Router', function () {
       const { platform, host, router, container, $teardown } = await $setup();
       container.register(Global1);
 
-      await $goto('global1/local2/local3', router, platform);
+      await $load('global1/local2/local3', router, platform);
 
       assert.match(host.textContent, /.*global1.*local2.*local3.*/, `host.textContent`);
 
@@ -1048,7 +1060,7 @@ describe('Router', function () {
       const Local1 = CustomElement.define({ name: 'local1', template: 'local1<au-viewport name="one" used-by="local2"></au-viewport>', dependencies: [Local2] }, null);
       const { platform, host, router, $teardown } = await $setup([Local1]);
 
-      await $goto('local1/local2/local3', router, platform);
+      await $load('local1/local2/local3', router, platform);
 
       assert.match(host.textContent, /.*local1.*local2.*local3.*/, `host.textContent`);
 
@@ -1062,11 +1074,11 @@ describe('Router', function () {
       const Local2 = CustomElement.define({ name: 'local2', template: 'local2<au-viewport name="two"></au-viewport>', dependencies: [Conflict2] }, null);
       const { platform, host, router, $teardown } = await $setup([Local1, Local2]);
 
-      await $goto('local1@default/conflict@one', router, platform);
+      await $load('local1@default/conflict@one', router, platform);
 
       assert.match(host.textContent, /.*local1.*conflict1.*/, `host.textContent`);
 
-      await $goto('local2@default/conflict@two', router, platform);
+      await $load('local2@default/conflict@two', router, platform);
 
       assert.match(host.textContent, /.*local2.*conflict2.*/, `host.textContent`);
 
@@ -1081,11 +1093,11 @@ describe('Router', function () {
       const { platform, host, router, container, $teardown } = await $setup();
       container.register(Global1, Global2);
 
-      await $goto('global1@default/conflict@one', router, platform);
+      await $load('global1@default/conflict@one', router, platform);
 
       assert.match(host.textContent, /.*global1.*conflict1.*/, `host.textContent`);
 
-      await $goto('global2@default/conflict@two', router, platform);
+      await $load('global2@default/conflict@two', router, platform);
 
       assert.match(host.textContent, /.*global2.*conflict2.*/, `host.textContent`);
 
@@ -1100,11 +1112,11 @@ describe('Router', function () {
       const { platform, host, router, container, $teardown } = await $setup([Local1]);
       container.register(Global2);
 
-      await $goto('local1@default/conflict@one', router, platform);
+      await $load('local1@default/conflict@one', router, platform);
 
       assert.match(host.textContent, /.*local1.*conflict1.*/, `host.textContent`);
 
-      await $goto('global2@default/conflict@two', router, platform);
+      await $load('global2@default/conflict@two', router, platform);
 
       assert.match(host.textContent, /.*global2.*conflict2.*/, `host.textContent`);
 
@@ -1169,7 +1181,7 @@ describe('Router', function () {
           const { platform, host, router, container, $teardown } = await $setup([Local2]);
           container.register(Global1);
 
-          await $goto(path, router, platform);
+          await $load(path, router, platform);
 
           assert.match(host.textContent, expectedText, `host.textContent`);
 
@@ -1251,7 +1263,7 @@ describe('Router', function () {
         const { platform, container, host, router, $teardown } = await $setup(App, void 0, (type, data, title, path) => {
           locationPath = path;
         });
-        await $goto(test.path, router, platform);
+        await $load(test.path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
         await $teardown();
@@ -1263,7 +1275,7 @@ describe('Router', function () {
         locationPath = path;
       });
       for (const test of tests) {
-        await $goto(test.path, router, platform);
+        await $load(test.path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
       }
@@ -1278,7 +1290,7 @@ describe('Router', function () {
         const { platform, container, host, router, $teardown } = await $setup(App, void 0, (type, data, title, path) => {
           locationPath = path;
         });
-        await $goto(path, router, platform);
+        await $load(path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
         await $teardown();
@@ -1292,7 +1304,7 @@ describe('Router', function () {
       for (const test of tests) {
         const path = test.path.replace(/@\w+/g, '');
         const url = test.url.replace(/@\w+/g, '');
-        await $goto(path, router, platform);
+        await $load(path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
       }
@@ -1342,11 +1354,13 @@ describe('Router', function () {
     }
 
     function $removeViewport(instructions) {
-      for (const instruction of instructions) {
-        instruction.viewport = null;
-        instruction.viewportName = null;
-        if (Array.isArray(instruction.nextScopeInstructions)) {
-          $removeViewport(instruction.nextScopeInstructions);
+      if (Array.isArray(instructions)) {
+        for (const instruction of instructions) {
+          instruction.viewport = null;
+          instruction.viewportName = null;
+          if (Array.isArray(instruction.nextScopeInstructions)) {
+            $removeViewport(instruction.nextScopeInstructions);
+          }
         }
       }
     }
@@ -1452,7 +1466,7 @@ describe('Router', function () {
       it(`to load route ${test.path} => ${test.url}`, async function () {
         const { platform, host, router, $teardown } = await $setup(void 0, appDependencies, appRoutes, locationCallback);
 
-        await $goto(test.path, router, platform);
+        await $load(test.path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
         assert.strictEqual(browserTitle, test.title, 'browser.title');
@@ -1464,7 +1478,7 @@ describe('Router', function () {
       const { platform, host, router, $teardown } = await $setup(void 0, appDependencies, appRoutes, locationCallback);
 
       for (const test of tests) {
-        await $goto(test.path, router, platform);
+        await $load(test.path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
         assert.strictEqual(browserTitle, test.title, 'browser.title');
@@ -1479,7 +1493,7 @@ describe('Router', function () {
       it(`to load route ${path} => ${url}`, async function () {
         const { platform, host, router, $teardown } = await $setup(void 0, appDependencies, appRoutes, locationCallback);
 
-        await $goto(path, router, platform);
+        await $load(path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
         assert.strictEqual(browserTitle, title, 'browser.title');
@@ -1494,7 +1508,7 @@ describe('Router', function () {
         const path = test.path.replace(/@\w+/g, '');
         const url = test.url.replace(/@\w+/g, '');
         const title = test.title.replace(/@Parent/g, '');
-        await $goto(path, router, platform);
+        await $load(path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
         assert.strictEqual(browserTitle, title, 'browser.title');
@@ -1516,7 +1530,7 @@ describe('Router', function () {
           }
         }
 
-        await $goto(test.path, router, platform);
+        await $load(test.path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
         assert.strictEqual(browserTitle, test.title, 'browser.title');
@@ -1528,7 +1542,7 @@ describe('Router', function () {
       const { platform, host, router, $teardown, App } = await $setup(void 0, appDependencies, appRoutes, locationCallback);
 
       for (const test of tests) {
-        await $goto(test.path, router, platform);
+        await $load(test.path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
         assert.strictEqual(browserTitle, test.title, 'browser.title');
@@ -1543,7 +1557,7 @@ describe('Router', function () {
       it(`to load route (without viewports) ${path} => ${url}`, async function () {
         const { platform, host, router, $teardown } = await $setup(void 0, appDependencies, appRoutes, locationCallback);
 
-        await $goto(path, router, platform);
+        await $load(path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
         assert.strictEqual(browserTitle, title, 'browser.title');
@@ -1558,7 +1572,7 @@ describe('Router', function () {
         const path = test.path.replace(/@\w+/g, '');
         const url = test.url.replace(/@\w+/g, '');
         const title = test.title.replace(/@Parent/g, '');
-        await $goto(path, router, platform);
+        await $load(path, router, platform);
         assert.strictEqual(host.textContent, test.result, `host.textContent`);
         assert.strictEqual(locationPath, `#/${url}`, 'location.path');
         assert.strictEqual(browserTitle, title, 'browser.title');
@@ -1776,7 +1790,7 @@ describe('Router', function () {
         it(`to load route ${test.path} => ${test.url}`, async function () {
           const { platform, host, router, $teardown } = await $setup({ title: config }, appDependencies, appRoutes, locationCallback);
 
-          await $goto(test.path, router, platform);
+          await $load(test.path, router, platform);
           assert.strictEqual(host.textContent, test.result, `host.textContent`);
           assert.strictEqual(locationPath, `#/${test.url}`, 'location.path');
           assert.strictEqual(browserTitle, titles[i][j], 'browser.title');
@@ -1838,7 +1852,7 @@ describe('Router', function () {
       }
     }
 
-    const part = '<au-viewport-scope><a goto="my-one">One</a><a goto="my-two">Two</a>:<au-viewport default="my-zero"></au-viewport></au-viewport-scope>';
+    const part = '<au-viewport-scope><a load="my-one">One</a><a load="my-two">Two</a>:<au-viewport default="my-zero"></au-viewport></au-viewport-scope>';
     const Siblings = CustomElement.define({ name: 'my-siblings', template: `!my-siblings!${part}|${part}` }, class { });
     const Zero = CustomElement.define({ name: 'my-zero', template: '!my-zero!' }, class { });
     const One = CustomElement.define({ name: 'my-one', template: '!my-one!' }, class { });
@@ -1855,10 +1869,10 @@ describe('Router', function () {
     };
 
     const tests = [
-      { anchor: 0, result: '!my-siblings!OneTwo:!my-one!|OneTwo:', url: 'my-siblings/my-one', title: '', name: 'first my-one'},
-      { anchor: 1, result: '!my-siblings!OneTwo:!my-two!|OneTwo:', url: 'my-siblings/my-two', title: '', name: 'first my-two'},
-      { anchor: 2, result: '!my-siblings!OneTwo:|OneTwo:!my-one!', url: 'my-siblings/my-two', title: '', name: 'second my-one'},
-      { anchor: 3, result: '!my-siblings!OneTwo:|OneTwo:!my-two!', url: 'my-siblings/my-two', title: '', name: 'second my-two'},
+      { anchor: 0, result: '!my-siblings!OneTwo:!my-one!|OneTwo:', url: 'my-siblings/my-one', title: '', name: 'first my-one' },
+      { anchor: 1, result: '!my-siblings!OneTwo:!my-two!|OneTwo:', url: 'my-siblings/my-two', title: '', name: 'first my-two' },
+      { anchor: 2, result: '!my-siblings!OneTwo:|OneTwo:!my-one!', url: 'my-siblings/my-two', title: '', name: 'second my-one' },
+      { anchor: 3, result: '!my-siblings!OneTwo:|OneTwo:!my-two!', url: 'my-siblings/my-two', title: '', name: 'second my-two' },
     ];
 
     for (let j = 0; j < tests.length; j++) {
@@ -1866,7 +1880,7 @@ describe('Router', function () {
       it.skip(`to load sibling routes ${test.name}`, async function () {
         const { platform, host, router, $teardown } = await $setup({}, appDependencies, [], locationCallback);
 
-        await $goto('/my-siblings', router, platform);
+        await $load('/my-siblings', router, platform);
         await platform.domWriteQueue.yield();
 
         (host.getElementsByTagName('A')[test.anchor] as HTMLElement).click();
@@ -1885,7 +1899,7 @@ describe('Router', function () {
 let quxCantUnload = 0;
 let plughReentryBehavior = 'default';
 
-const $goto = async (path: string, router: IRouter, platform: IPlatform) => {
+const $load = async (path: string, router: IRouter, platform: IPlatform) => {
   await router.load(path);
   platform.domWriteQueue.flush();
 };

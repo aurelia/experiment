@@ -1,6 +1,12 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 import { Constructable } from '@aurelia/kernel';
 import { CustomElement, IController, ICustomElementViewModel } from '@aurelia/runtime-html';
-import { ComponentAppellation, IRouteableComponent, RouteableComponentType, IViewportInstruction, NavigationInstruction, ViewportHandle } from './interfaces.js';
+import { ComponentAppellation, IRouteableComponent, RouteableComponentType, IViewportInstruction, LoadInstruction, ViewportHandle } from './interfaces.js';
 import { IRouter } from './router.js';
 import { Viewport } from './viewport.js';
 import { ViewportInstruction } from './viewport-instruction.js';
@@ -71,8 +77,8 @@ export interface IViewportInstructionsOptions {
   context?: ICustomElementViewModel | Node | IController;
 }
 
-export const NavigationInstructionResolver = {
-  createViewportInstructions(router: IRouter, navigationInstructions: NavigationInstruction | NavigationInstruction[], options?: IViewportInstructionsOptions): { instructions: string | ViewportInstruction[]; scope: Scope | null } {
+export const LoadInstructionResolver = {
+  createViewportInstructions(router: IRouter, navigationInstructions: LoadInstruction | LoadInstruction[], options?: IViewportInstructionsOptions): { instructions: string | ViewportInstruction[]; scope: Scope | null } {
     options = options || {};
     let scope: Scope | null = null;
     if (options.context) {
@@ -100,7 +106,7 @@ export const NavigationInstructionResolver = {
           scope = router.rootScope!.scope;
         }
       } else {
-        navigationInstructions = NavigationInstructionResolver.toViewportInstructions(router, navigationInstructions);
+        navigationInstructions = LoadInstructionResolver.toViewportInstructions(router, navigationInstructions);
         for (const instruction of navigationInstructions as ViewportInstruction[]) {
           if (instruction.scope === null) {
             instruction.scope = scope;
@@ -115,9 +121,9 @@ export const NavigationInstructionResolver = {
     };
   },
 
-  toViewportInstructions(router: IRouter, navigationInstructions: NavigationInstruction | NavigationInstruction[]): ViewportInstruction[] {
+  toViewportInstructions(router: IRouter, navigationInstructions: LoadInstruction | LoadInstruction[]): ViewportInstruction[] {
     if (!Array.isArray(navigationInstructions)) {
-      return NavigationInstructionResolver.toViewportInstructions(router, [navigationInstructions]);
+      return LoadInstructionResolver.toViewportInstructions(router, [navigationInstructions]);
     }
     const instructions: ViewportInstruction[] = [];
     for (const instruction of navigationInstructions) {
@@ -129,7 +135,7 @@ export const NavigationInstructionResolver = {
         const viewportComponent = instruction as IViewportInstruction;
         const newInstruction = router.createViewportInstruction(viewportComponent.component, viewportComponent.viewport, viewportComponent.parameters);
         if (viewportComponent.children !== void 0 && viewportComponent.children !== null) {
-          newInstruction.nextScopeInstructions = NavigationInstructionResolver.toViewportInstructions(router, viewportComponent.children);
+          newInstruction.nextScopeInstructions = LoadInstructionResolver.toViewportInstructions(router, viewportComponent.children);
         }
         instructions.push(newInstruction);
       } else {

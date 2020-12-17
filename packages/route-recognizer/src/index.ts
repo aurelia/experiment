@@ -9,14 +9,14 @@ export class ConfigurableRoute<T> implements IConfigurableRoute<T> {
     public readonly path: string,
     public readonly caseSensitive: boolean,
     public readonly handler: T,
-  ) {}
+  ) { }
 }
 
 export class Endpoint<T> {
   public constructor(
     public readonly route: ConfigurableRoute<T>,
     public readonly paramNames: readonly string[],
-  ) {}
+  ) { }
 }
 
 export class RecognizedRoute<T> {
@@ -564,9 +564,9 @@ type AnySegment<T> = (
 );
 
 const enum SegmentKind {
-  star    = 1,
+  star = 1,
   dynamic = 2,
-  static  = 3,
+  static = 3,
 }
 
 class StaticSegment<T> {
@@ -575,7 +575,7 @@ class StaticSegment<T> {
   public constructor(
     public readonly value: string,
     public readonly caseSensitive: boolean,
-  ) {}
+  ) { }
 
   public appendTo(state: AnyState<T>): StaticState<T> {
     const { value, value: { length } } = this;
@@ -615,7 +615,7 @@ class DynamicSegment<T> {
   public constructor(
     public readonly name: string,
     public readonly optional: boolean,
-  ) {}
+  ) { }
 
   public appendTo(state: AnyState<T>): DynamicState<T> {
     state = state.append(
@@ -640,7 +640,7 @@ class StarSegment<T> {
 
   public constructor(
     public readonly name: string,
-  ) {}
+  ) { }
 
   public appendTo(state: AnyState<T>): StarState<T> {
     state = state.append(

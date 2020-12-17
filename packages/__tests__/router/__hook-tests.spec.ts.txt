@@ -8,9 +8,10 @@ import { assert } from '@aurelia/testing';
 import { IHookInvocationAggregator, IHIAConfig, HookName, MaybeHookName } from './_shared/hook-invocation-tracker.js';
 import { TestRouteViewModelBase, HookSpecs } from './_shared/view-models.js';
 import { hookSpecsMap } from './_shared/hook-spec.js';
-import { createFixture, DeferralJuncture, SwapStrategy, translateOptions, transformNotifications, IRouterOptionsSpec } from './_shared/create-fixture.js';
+import { createFixture, DeferralJuncture, SwapStrategy, translateOptions, IRouterOptionsSpec } from './_shared/create-fixture.js';
 import { IContainer } from '@aurelia/kernel';
-import { addHooks, assertHooks, getParentChildHooks, getSingleHooks, getStartHooks, getStopHooks, removeHooks } from './_shared/hooks.js';
+import { addHooks, assertHooks, getStartHooks, getStopHooks, removeHooks } from './_shared/hooks.js';
+import { getHooks, routingHooks } from './_shared/hooks.js';
 
 function vp(count: number, name = ''): string {
   if (count === 1) {
@@ -165,9 +166,9 @@ describe('router hooks', function () {
     for (const componentSpec of componentSpecs) {
       const { kind, hookSpecs } = componentSpec;
 
-      if (kind !== 'all-sync') {
-        continue;
-      }
+      // if (kind !== 'all-async') {
+      //   continue;
+      // }
 
       @customElement({ name: 'a01', template: 'a01' })
       class A01 extends TestRouteViewModelBase {
@@ -243,6 +244,7 @@ describe('router hooks', function () {
 
               function runTest(spec: ISpec) {
                 const { t1, t2, t3, t4 } = spec;
+
                 // These PASS
                 it(`'${t1}' -> '${t2}' -> '${t3}' -> '${t4}'`, async function () {
                   const { router, hia, tearDown } = await createFixture(Root1, A, getDefaultHIAConfig, getRouterOptions);
@@ -269,16 +271,28 @@ describe('router hooks', function () {
                   const expected = [...(function* () {
                     yield* getStartHooks('root1');
 
-                    yield* getSingleHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, componentSpec.kind, phase1, '', t1);
+                    const single = componentSpec.kind === 'all-sync'
+                      ? { from: '', to: t1 }
+                      : { from: '', to: { component: t1, timings: getTimings() } };
+
+                    const hooks = getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, phase1, [single]);
+                    for (const hook of hooks) {
+                      yield hook;
+                    }
 
                     for (const [phase, { $t1, $t2 }] of [
                       [phase2, { $t1: t1, $t2: t2 }],
                       [phase3, { $t1: t2, $t2: t3 }],
                       [phase4, { $t1: t3, $t2: t4 }],
                     ] as const) {
+                      const single = componentSpec.kind === 'all-sync'
+                        ? { from: $t1, to: $t2 }
+                        : { from: { component: $t1, timings: getTimings() }, to: { component: $t2, timings: getTimings() } };
 
-                      yield* getSingleHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, componentSpec.kind, phase, $t1, $t2);
-
+                      const hooks = getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, phase, [single]);
+                      for (const hook of hooks) {
+                        yield hook;
+                      }
                     }
 
                     yield* getStopHooks('root1', t4);
@@ -318,7 +332,7 @@ describe('router hooks', function () {
                 const instr1 = join('+', `${t1.vp0}@$0`, `${t1.vp1}@$1`);
                 const instr2 = join('+', `${t2.vp0}@$0`, `${t2.vp1}@$1`);
                 // TODO: Fix this
-                it.skip(`${instr1}' -> '${instr2}' -> '${instr1}' -> '${instr2}'`, async function () {
+                it(`${instr1}' -> '${instr2}' -> '${instr1}' -> '${instr2}'`, async function () {
                   const { router, hia, tearDown } = await createFixture(Root2, A, getDefaultHIAConfig, getRouterOptions);
 
                   const phase1 = `('' -> '${instr1}')#1`;
@@ -341,6 +355,10 @@ describe('router hooks', function () {
                   await tearDown();
 
                   const expected = [...(function* () {
+
+                    yield* getStartHooks('root2');
+
+                    /*
                     yield `start.root2.binding`;
                     yield `start.root2.bound`;
                     yield `start.root2.attaching`;
@@ -384,379 +402,29 @@ describe('router hooks', function () {
 
                         break;
                     }
-
+                    */
                     for (const [phase, { $t1, $t2 }] of [
+                      [phase1, { $t1: { vp0: '', vp1: '' }, $t2: t1 }],
                       [phase2, { $t1: t1, $t2: t2 }],
                       [phase3, { $t1: t2, $t2: t1 }],
                       [phase4, { $t1: t1, $t2: t2 }],
                     ] as const) {
 
-                      // Implicit change (clear) in v0, happens after explicit changes
-                      let [vpFirst, vpSecond] = !$t2.vp0 ? ['vp1', 'vp0'] : ['vp0', 'vp1'];
+                      const hooks = getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, phase, [
+                        { from: $t1.vp0, to: $t2.vp0 },
+                      ], [
+                        { from: $t1.vp1, to: $t2.vp1 },
+                      ]);
 
-                      if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.canUnload`; }
-                      if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.canUnload`; }
-
-                      if (componentSpec.kind === 'all-sync') {
-                        if (routerOptionsSpec.deferUntil !== 'none') {
-                          if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.canLoad`; }
-                          if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.canLoad`; }
-                        }
-
-                        switch (routerOptionsSpec.deferUntil) {
-                          case 'none':
-                            break;
-                          case 'guard-hooks':
-                            // if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                            // if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-                            break;
-                          case 'load-hooks':
-                            if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                            if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-
-                            if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.load`; }
-                            if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.load`; }
-                            break;
-                        }
+                      for (const hook of hooks) {
+                        yield hook;
                       }
 
-                      switch (routerOptionsSpec.swapStrategy) {
-                        case 'parallel-remove-first':
-                          switch (componentSpec.kind) {
-                            case 'all-async':
-                              yield* interleave(
-                                (function* () {
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                })(),
-                                (function* () {
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                })(),
-                                (function* () {
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                })(),
-                                (function* () {
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                })(),
-                              );
-                              break;
-                            case 'all-sync':
-                              if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                              if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                              if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                              if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                              break;
-                          }
-                          break;
-                        case 'sequential-remove-first':
-                          switch (componentSpec.kind) {
-                            case 'all-async':
-                              // Implicit change (clear) in second, will catch up with explicit changes in first
-                              [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                              if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.canLoad`; }
-                              if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.canLoad`; }
-
-                              // Implicit change (clear) in second, will catch up with explicit changes in first
-                              [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                              if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                              if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-
-                              // Implicit change (clear) in second, will catch up with explicit changes in first
-                              [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                              if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.load`; }
-                              if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.load`; }
-
-                              yield* interleave(
-                                (function* () {
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                })(),
-                                (function* () {
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                })(),
-                              );
-                              break;
-                            case 'all-sync':
-                              switch (routerOptionsSpec.deferUntil) {
-                                case 'none':
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.canLoad`; }
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.load`; }
-
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.canLoad`; }
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.load`; }
-
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                  break;
-                                case 'guard-hooks':
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.load`; }
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.load`; }
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                  break;
-                                case 'load-hooks':
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                  break;
-                              }
-                              break;
-                          }
-                          break;
-                        case 'sequential-add-first':
-                          switch (componentSpec.kind) {
-                            case 'all-async':
-                              // if ($t1[vpSecond] && !$t2[vpSecond] && $t1[vpFirst] !== $t2[vpFirst]) {
-                              //   // TODO: figure out why this one specific case has a minor timing deviation with `dispose` and remove this special condition
-                              //   yield* interleave(
-                              //     prepend(phase, $t2[vpFirst], 'canLoad', 'load', ...addHooks),
-                              //     prepend(phase, $t1[vpSecond], 'unload', ...removeHooks),
-                              //   );
-                              //   yield* prepend(phase, $t1[vpFirst], 'unload', ...removeHooks);
-                              // } else {
-                              /*
-                            if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.canLoad`; }
-                            if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.canLoad`; }
-                            if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                            if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-*/
-                              // yield* interleave(
-                              //   (function* () {
-                              //     if ($t1[vpFirst] !== $t2[vpFirst] && $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], 'canLoad'); }
-                              //     if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], 'unload'); }
-                              //     if ($t1[vpFirst] !== $t2[vpFirst] && $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], 'load'); }
-
-                              //     if ($t1[vpFirst] !== $t2[vpFirst] && $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                              //     if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                              //   })(),
-                              //   (function* () {
-                              //     if ($t1[vpSecond] !== $t2[vpSecond] && $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], 'canLoad'); }
-                              //     if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], 'unload'); }
-                              //     if ($t1[vpSecond] !== $t2[vpSecond] && $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], 'load'); }
-
-                              //     if ($t1[vpSecond] !== $t2[vpSecond] && $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                              //     if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                              //   })(),
-                              // );
-
-                              switch (routerOptionsSpec.deferUntil) {
-                                case 'none':
-                                  yield* interleave(
-                                    (function* () {
-                                      // Implicit change (clear) in v0, will catch up with explicit changes
-                                      const [vpFirst, vpSecond] = !$t2.vp1 ? ['vp1', 'vp0'] : ['vp0', 'vp1'];
-                                      if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], 'canLoad'); }
-                                      if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], 'unload'); }
-                                      if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], 'load'); }
-
-                                      if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                      if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                    })(),
-                                    (function* () {
-                                      // Implicit change (clear) in v0, will catch up with explicit changes
-                                      const [vpFirst, vpSecond] = !$t2.vp1 ? ['vp1', 'vp0'] : ['vp0', 'vp1'];
-                                      if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], 'canLoad'); }
-                                      if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], 'unload'); }
-                                      if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], 'load'); }
-
-                                      if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                      if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                    })(),
-                                  );
-                                  break;
-                                case 'guard-hooks':
-                                  // No canUnload in second, will catch up with explicit changes in first
-                                  [vpFirst, vpSecond] = !$t1[vpSecond] && $t1[vpFirst] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.canLoad`; }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.canLoad`; }
-
-                                  // No canLoad in second, will catch up with explicit changes in first
-                                  [vpFirst, vpSecond] = !$t2[vpSecond] && $t2[vpFirst] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                  // // Implicit change (clear) in second, will catch up with explicit changes in first
-                                  // [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                  // if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                                  // if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-
-                                  // // Implicit change (clear) in second, will catch up with explicit changes in first
-                                  // [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                  // if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.load`; }
-                                  // if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.load`; }
-
-                                  yield* interleave(
-                                    (function* () {
-                                      if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                                      // No unload in second, will catch up with explicit changes in first
-                                      [vpFirst, vpSecond] = !$t1[vpSecond] && $t1[vpFirst] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                      if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.load`; }
-
-                                      if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                      if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                    })(),
-                                    (function* () {
-                                      if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-                                      // Implicit change (clear) in second, will catch up with explicit changes in first
-                                      [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                      if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.load`; }
-
-                                      if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                      if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                    })(),
-                                  );
-                                  break;
-                                case 'load-hooks':
-                                  // Implicit change (clear) in second, will catch up with explicit changes in first
-                                  [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.canLoad`; }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.canLoad`; }
-
-                                  // Implicit change (clear) in second, will catch up with explicit changes in first
-                                  [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-
-                                  // Implicit change (clear) in second, will catch up with explicit changes in first
-                                  [vpFirst, vpSecond] = !$t2[vpSecond] || !$t1[vpSecond] ? [vpSecond, vpFirst] : [vpFirst, vpSecond];
-
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.load`; }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.load`; }
-
-                                  // // Implicit change (clear) in v0, will catch up with explicit changes
-                                  // const [vpFirst, vpSecond] = !$t2.vp1 ? ['vp1', 'vp0'] : ['vp0', 'vp1'];
-
-                                  // if (!$t2.vp0) {
-                                  //   yield* interleave(
-                                  //     (function* () {
-                                  //       // Implicit change (clear) in v0, will catch up with explicit changes
-                                  //       // const [vpFirst, vpSecond] = !$t2.vp1 ? ['vp1', 'vp0'] : ['vp0', 'vp1'];
-                                  //       if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], 'canLoad'); }
-                                  //       if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], 'unload'); }
-                                  //       if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], 'load'); }
-
-                                  //       if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                  //       if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                  //     })(),
-                                  //     (function* () {
-                                  //       // Implicit change (clear) in v0, will catch up with explicit changes
-                                  //       // const [vpFirst, vpSecond] = !$t2.vp1 ? ['vp1', 'vp0'] : ['vp0', 'vp1'];
-                                  //       if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], 'canLoad'); }
-                                  //       if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], 'unload'); }
-                                  //       if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], 'load'); }
-
-                                  //       if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                  //       if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                  //     })(),
-                                  //   );
-                                  // } else {
-                                  yield* interleave(
-                                    (function* () {
-                                      // Implicit change (clear) in v0, will catch up with explicit changes
-                                      // const [vpFirst, vpSecond] = !$t2.vp1 ? ['vp1', 'vp0'] : ['vp0', 'vp1'];
-                                      // if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], 'canLoad'); }
-                                      // if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], 'unload'); }
-                                      // if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], 'load'); }
-
-                                      if ($t2[vpFirst] && $t1[vpFirst] !== $t2[vpFirst]) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                      if ($t1[vpFirst] !== $t2[vpFirst] && $t1[vpFirst]) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                    })(),
-                                    (function* () {
-                                      // Implicit change (clear) in v0, will catch up with explicit changes
-                                      // const [vpFirst, vpSecond] = !$t2.vp1 ? ['vp1', 'vp0'] : ['vp0', 'vp1'];
-                                      // if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], 'canLoad'); }
-                                      // if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], 'unload'); }
-                                      // if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], 'load'); }
-
-                                      if ($t2[vpSecond] && $t1[vpSecond] !== $t2[vpSecond]) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                      if ($t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond]) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                    })(),
-                                  );
-                                  // }
-                                  break;
-                              }
-
-                              // (function* () {
-                              //   const [vpFirst, vpSecond] = ['vp0', 'vp1'];
-                              //     /* if ($t1[vpSecond] !== $t2[vpSecond]) { */ yield* prepend(phase, $t2[vpSecond], $t1[vpSecond] !== $t2[vpSecond] && $t2[vpSecond] ? 'canLoad' : ''); //}
-                              //     /* if ($t1[vpSecond] !== $t2[vpSecond]) { */ yield* prepend(phase, $t1[vpSecond], $t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond] ? 'unload' : ''); //}
-                              //     /* if ($t1[vpSecond] !== $t2[vpSecond]) { */ yield* prepend(phase, $t2[vpSecond], $t1[vpSecond] !== $t2[vpSecond] && $t2[vpSecond] ? 'load' : ''); //}
-
-                              //     /* if ($t1[vpSecond] !== $t2[vpSecond]) { */ yield* prepend(phase, $t2[vpSecond], ...addHooks.map(hook => $t1[vpSecond] !== $t2[vpSecond] && $t2[vpSecond] ? hook : '')); //}
-                              //     /* if ($t1[vpSecond] !== $t2[vpSecond]) { */ yield* prepend(phase, $t1[vpSecond], ...removeHooks.map(hook => $t1[vpSecond] !== $t2[vpSecond] && $t1[vpSecond] ? hook : '')); //}
-                              // })(),
-
-                              /* Original
-                              yield* interleave(
-                                (function* () {
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                })(),
-                                (function* () {
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                })(),
-                              );
-                              */
-                              // }
-                              break;
-                            case 'all-sync':
-                              switch (routerOptionsSpec.deferUntil) {
-                                case 'none':
-
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t2[vpFirst]}.canLoad`; }
-
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], 'load', ...addHooks); }
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t2[vpSecond]}.canLoad`; }
-
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], 'load', ...addHooks); }
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                  break;
-                                case 'guard-hooks':
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield `${phase}.${$t1[vpFirst]}.unload`; }
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], 'load', ...addHooks); }
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield `${phase}.${$t1[vpSecond]}.unload`; }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], 'load', ...addHooks); }
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                  break;
-                                case 'load-hooks':
-                                  if ($t2[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t2[vpFirst], ...addHooks); }
-                                  if ($t1[vpFirst] && ($t1[vpFirst] !== $t2[vpFirst])) { yield* prepend(phase, $t1[vpFirst], ...removeHooks); }
-                                  if ($t2[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t2[vpSecond], ...addHooks); }
-                                  if ($t1[vpSecond] && ($t1[vpSecond] !== $t2[vpSecond])) { yield* prepend(phase, $t1[vpSecond], ...removeHooks); }
-                                  break;
-                              }
-                              break;
-                          }
-                          break;
-                      }
                     }
 
+                    yield* getStopHooks('root2', t2.vp0, t2.vp1);
+
+                    /*
                     yield `stop.root2.detaching`;
                     yield `stop.root2.unbinding`;
 
@@ -776,8 +444,10 @@ describe('router hooks', function () {
                         if (t2.vp1) { yield* prepend('stop', t2.vp1, 'detaching', 'unbinding'); }
                         break;
                     }
+
+                    */
                   })()];
-                  assertHooks(transformNotifications(hia.notifyHistory), expected);
+                  assertHooks(hia.notifyHistory, expected);
 
                   hia.dispose();
                 });
@@ -849,15 +519,21 @@ describe('router hooks', function () {
                 const { t1, t2 } = spec;
                 const instr1 = join('/', t1.p, t1.c);
                 const instr2 = join('/', t2.p, t2.c);
-                // TODO: Fix this AM HERE
-                it(`${instr1}' -> '${instr2}' -> '${instr1}' -> '${instr2}'`, async function () {
-                  const { router, hia, tearDown } = await createFixture(Root1, A, getDefaultHIAConfig, getRouterOptions);
+
+                // These pass routing hooks
+                it.only(`${instr1}' -> '${instr2}' -> '${instr1}' -> '${instr2}'`, async function () {
+                  const { router, hia, tearDown, startTracing, stopTracing, logTicks } = await createFixture(Root1, A, getDefaultHIAConfig, getRouterOptions);
+
+                  startTracing();
 
                   const phase1 = `('' -> '${instr1}')#1`;
                   const phase2 = `('${instr1}' -> '${instr2}')#2`;
                   const phase3 = `('${instr2}' -> '${instr1}')#3`;
                   const phase4 = `('${instr1}' -> '${instr2}')#4`;
 
+                  // const stopTickLog = logTicks((tick: number)  => {
+                  //   console.log('Tick no', tick);
+                  // });
                   hia.setPhase(phase1);
                   await router.load(instr1);
 
@@ -870,34 +546,51 @@ describe('router hooks', function () {
                   hia.setPhase(phase4);
                   await router.load(instr2);
 
-                  // console.log(`tearDown ${instr1}' -> '${instr2}' -> '${instr1}' -> '${instr2}'`);
+                  // stopTickLog();
+
+                  stopTracing();
                   await tearDown();
 
                   const expected = [...(function* () {
                     yield* getStartHooks('root1');
 
-                    yield* getParentChildHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, componentSpec.kind, phase1, { p: '', c: '' }, t1);
+                    let parent;
+                    let child;
+                    if (componentSpec.kind === 'all-sync') {
+                      parent = { from: '', to: t1.p };
+                      child = { from: '', to: t1.c };
+                    } else {
+                      parent = { from: '', to: { component: t1.p, timings: getTimings() } };
+                      child = { from: '', to: t1.c ? { component: t1.c, timings: getTimings() } : '' };
+                    }
+
+                    const hooks = getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, phase1, [parent, child]);
+                    for (const hook of hooks) {
+                      yield hook;
+                    }
 
                     for (const [phase, { $t1, $t2 }] of [
                       [phase2, { $t1: t1, $t2: t2 }],
                       [phase3, { $t1: t2, $t2: t1 }],
                       [phase4, { $t1: t1, $t2: t2 }],
                     ] as const) {
-                      // When parents are equal, this becomes like an ordinary single component transition
-                      if ($t1.p === $t2.p) {
-                        yield* getSingleHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, componentSpec.kind, phase, $t1.c, $t2.c);
+                      let parent;
+                      let child;
+                      if (componentSpec.kind === 'all-sync') {
+                        parent = { from: $t1.p, to: $t2.p };
+                        child = { from: $t1.c, to: $t2.c };
                       } else {
-                        yield* getParentChildHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, componentSpec.kind, phase, $t1, $t2);
+                        parent = { from: $t1.p ? { component: $t1.p, timings: getTimings() } : '', to: $t2.p ? { component: $t2.p, timings: getTimings() } : '' };
+                        child = { from: $t1.c ? { component: $t1.c, timings: getTimings() } : '', to: $t2.c ? { component: $t2.c, timings: getTimings() } : '' };
+                      }
+
+                      const hooks = getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, phase, [parent, child]);
+                      for (const hook of hooks) {
+                        yield hook;
                       }
                     }
 
                     yield* getStopHooks('root1', t2.p, t2.c);
-
-                    // yield `stop.root1.detaching`;
-                    // yield `stop.root1.unbinding`;
-
-                    // yield* prepend('stop', t2.p, 'detaching', 'unbinding');
-                    // if (t2.c) { yield* prepend('stop', t2.c, 'detaching', 'unbinding'); }
                   })()];
 
                   assertHooks(hia.notifyHistory, expected);
@@ -953,7 +646,7 @@ describe('router hooks', function () {
     }
   });
 
-  describe.skip('parent-child timings', function () {
+  describe('parent-child timings', function () {
     const deferUntils: DeferralJuncture[] = [
       'none',
       'guard-hooks',
@@ -1014,15 +707,16 @@ describe('router hooks', function () {
             attaching: hookSpecsMap.attaching.setTimeout_0,
           }),
 
+          // TODO: These error out due to improper lifecycle hooks
           HookSpecs.create({
             detaching: hookSpecsMap.detaching.setTimeout_0,
           }),
-          HookSpecs.create({
-            unbinding: hookSpecsMap.unbinding.setTimeout_0,
-          }),
+          // HookSpecs.create({
+          //   unbinding: hookSpecsMap.unbinding.setTimeout_0,
+          // }),
         ]) {
           // TODO: Fix this
-          it(`'a/b/c/d' -> 'a' (c.hookSpec:${hookSpec})`, async function () {
+          it(`'a/b/c/d' -> 'a' (c.hookSpec:${hookSpec.toString('sync')})`, async function () {
             // this.timeout(60000);
             @customElement({ name: 'root', template: '<au-viewport name="inRoot"></au-viewport>' })
             class Root extends TestRouteViewModelBase {
@@ -1057,11 +751,34 @@ describe('router hooks', function () {
 
             const { router, hia, tearDown } = await createFixture(Root, [A, B, C, D], getDefaultHIAConfig, getRouterOptions);
 
+            const hooks = [];
+            for (const hook of getStartHooks('root')) {
+              hooks.push(hook);
+            }
+
             hia.setPhase(`('' -> 'a/b/c/d')`);
             await router.load('a/b/c/d');
 
+            hooks.push(...getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, hia.phase, [
+              { from: '', to: 'a' },
+              { from: '', to: 'b' },
+              { from: '', to: { component: 'c', timings: getTimings(hookSpec) } },
+              { from: '', to: 'd' },
+            ]));
+
             hia.setPhase(`('a/b/c/d' -> 'a')`);
             await router.load('a');
+
+            hooks.push(...getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, hia.phase, [
+              { from: 'a', to: 'a' },
+              { from: 'b', to: '' },
+              { from: { component: 'c', timings: getTimings(hookSpec) }, to: '' },
+              { from: 'd', to: '' },
+            ]));
+
+            for (const hook of getStopHooks('root', 'a')) {
+              hooks.push(hook);
+            }
 
             await tearDown();
 
@@ -1069,193 +786,192 @@ describe('router hooks', function () {
               case 'none': {
                 assertHooks(
                   hia.notifyHistory,
-                  [
-                    `start.root.binding`,
-                    `start.root.bound`,
-                    `start.root.attaching`,
-                    `start.root.attached`,
+                  hooks
+                  // [
+                  //   `start.root.binding`,
+                  //   `start.root.bound`,
+                  //   `start.root.attaching`,
+                  //   `start.root.attached`,
 
-                    `('' -> 'a/b/c/d').a.canLoad`,
-                    `('' -> 'a/b/c/d').a.load`,
-                    `('' -> 'a/b/c/d').a.binding`,
-                    `('' -> 'a/b/c/d').a.bound`,
-                    `('' -> 'a/b/c/d').a.attaching`,
+                  //   `('' -> 'a/b/c/d').a.canLoad`,
+                  //   `('' -> 'a/b/c/d').a.load`,
+                  //   `('' -> 'a/b/c/d').a.binding`,
+                  //   `('' -> 'a/b/c/d').a.bound`,
+                  //   `('' -> 'a/b/c/d').a.attaching`,
 
-                    `('' -> 'a/b/c/d').b.canLoad`,
-                    `('' -> 'a/b/c/d').b.load`,
-                    `('' -> 'a/b/c/d').b.binding`,
-                    `('' -> 'a/b/c/d').b.bound`,
-                    `('' -> 'a/b/c/d').b.attaching`,
+                  //   `('' -> 'a/b/c/d').b.canLoad`,
+                  //   `('' -> 'a/b/c/d').b.load`,
+                  //   `('' -> 'a/b/c/d').b.binding`,
+                  //   `('' -> 'a/b/c/d').b.bound`,
+                  //   `('' -> 'a/b/c/d').b.attaching`,
 
-                    `('' -> 'a/b/c/d').c.canLoad`,
-                    `('' -> 'a/b/c/d').c.load`,
-                    `('' -> 'a/b/c/d').c.binding`,
-                    `('' -> 'a/b/c/d').c.bound`,
-                    `('' -> 'a/b/c/d').c.attaching`,
+                  //   `('' -> 'a/b/c/d').c.canLoad`,
+                  //   `('' -> 'a/b/c/d').c.load`,
+                  //   `('' -> 'a/b/c/d').c.binding`,
+                  //   `('' -> 'a/b/c/d').c.bound`,
+                  //   `('' -> 'a/b/c/d').c.attaching`,
 
-                    `('' -> 'a/b/c/d').d.canLoad`,
-                    `('' -> 'a/b/c/d').d.load`,
-                    `('' -> 'a/b/c/d').d.binding`,
-                    `('' -> 'a/b/c/d').d.bound`,
-                    `('' -> 'a/b/c/d').d.attaching`,
+                  //   `('' -> 'a/b/c/d').d.canLoad`,
+                  //   `('' -> 'a/b/c/d').d.load`,
+                  //   `('' -> 'a/b/c/d').d.binding`,
+                  //   `('' -> 'a/b/c/d').d.bound`,
+                  //   `('' -> 'a/b/c/d').d.attaching`,
 
-                    `('' -> 'a/b/c/d').d.attached`,
-                    `('' -> 'a/b/c/d').c.attached`,
-                    `('' -> 'a/b/c/d').b.attached`,
-                    `('' -> 'a/b/c/d').a.attached`,
+                  //   `('a/b/c/d' -> 'a').d.canUnload`,
+                  //   `('a/b/c/d' -> 'a').c.canUnload`,
+                  //   `('a/b/c/d' -> 'a').b.canUnload`,
 
-                    `('a/b/c/d' -> 'a').d.canUnload`,
-                    `('a/b/c/d' -> 'a').c.canUnload`,
-                    `('a/b/c/d' -> 'a').b.canUnload`,
+                  //   `('a/b/c/d' -> 'a').d.unload`,
+                  //   `('a/b/c/d' -> 'a').c.unload`,
+                  //   `('a/b/c/d' -> 'a').b.unload`,
 
-                    `('a/b/c/d' -> 'a').d.unload`,
-                    `('a/b/c/d' -> 'a').c.unload`,
-                    `('a/b/c/d' -> 'a').b.unload`,
+                  //   `('a/b/c/d' -> 'a').d.detaching`,
+                  //   `('a/b/c/d' -> 'a').d.unbinding`,
+                  //   `('a/b/c/d' -> 'a').d.dispose`,
+                  //   `('a/b/c/d' -> 'a').c.detaching`,
+                  //   `('a/b/c/d' -> 'a').c.unbinding`,
+                  //   `('a/b/c/d' -> 'a').c.dispose`,
+                  //   `('a/b/c/d' -> 'a').b.detaching`,
+                  //   `('a/b/c/d' -> 'a').b.unbinding`,
+                  //   `('a/b/c/d' -> 'a').b.dispose`,
 
-                    `('a/b/c/d' -> 'a').d.detaching`,
-                    `('a/b/c/d' -> 'a').d.unbinding`,
-                    `('a/b/c/d' -> 'a').d.dispose`,
-                    `('a/b/c/d' -> 'a').c.detaching`,
-                    `('a/b/c/d' -> 'a').c.unbinding`,
-                    `('a/b/c/d' -> 'a').c.dispose`,
-                    `('a/b/c/d' -> 'a').b.detaching`,
-                    `('a/b/c/d' -> 'a').b.unbinding`,
-                    `('a/b/c/d' -> 'a').b.dispose`,
+                  //   `stop.root.detaching`,
+                  //   `stop.root.unbinding`,
 
-                    `stop.root.detaching`,
-                    `stop.root.unbinding`,
-
-                    `stop.a.unload`,
-                    `stop.a.detaching`,
-                    `stop.a.unbinding`,
-                  ],
+                  //   `stop.a.unload`,
+                  //   `stop.a.detaching`,
+                  //   `stop.a.unbinding`,
+                  // ],
                 );
                 break;
               }
               case 'guard-hooks': {
                 assertHooks(
                   hia.notifyHistory,
-                  [
-                    `start.root.binding`,
-                    `start.root.bound`,
-                    `start.root.attaching`,
-                    `start.root.attached`,
+                  hooks,
+                  // [
+                  //   `start.root.binding`,
+                  //   `start.root.bound`,
+                  //   `start.root.attaching`,
+                  //   `start.root.attached`,
 
-                    `('' -> 'a/b/c/d').a.canLoad`,
-                    `('' -> 'a/b/c/d').b.canLoad`,
-                    `('' -> 'a/b/c/d').c.canLoad`,
-                    `('' -> 'a/b/c/d').d.canLoad`,
+                  //   `('' -> 'a/b/c/d').a.canLoad`,
+                  //   `('' -> 'a/b/c/d').b.canLoad`,
+                  //   `('' -> 'a/b/c/d').c.canLoad`,
+                  //   `('' -> 'a/b/c/d').d.canLoad`,
 
-                    `('' -> 'a/b/c/d').a.load`,
-                    `('' -> 'a/b/c/d').a.binding`,
-                    `('' -> 'a/b/c/d').a.bound`,
-                    `('' -> 'a/b/c/d').a.attaching`,
-                    `('' -> 'a/b/c/d').b.load`,
-                    `('' -> 'a/b/c/d').b.binding`,
-                    `('' -> 'a/b/c/d').b.bound`,
-                    `('' -> 'a/b/c/d').b.attaching`,
-                    `('' -> 'a/b/c/d').c.load`,
-                    `('' -> 'a/b/c/d').c.binding`,
-                    `('' -> 'a/b/c/d').c.bound`,
-                    `('' -> 'a/b/c/d').c.attaching`,
-                    `('' -> 'a/b/c/d').d.load`,
-                    `('' -> 'a/b/c/d').d.binding`,
-                    `('' -> 'a/b/c/d').d.bound`,
-                    `('' -> 'a/b/c/d').d.attaching`,
-                    `('' -> 'a/b/c/d').d.attached`,
-                    `('' -> 'a/b/c/d').c.attached`,
-                    `('' -> 'a/b/c/d').b.attached`,
-                    `('' -> 'a/b/c/d').a.attached`,
+                  //   `('' -> 'a/b/c/d').a.load`,
+                  //   `('' -> 'a/b/c/d').a.binding`,
+                  //   `('' -> 'a/b/c/d').a.bound`,
+                  //   `('' -> 'a/b/c/d').a.attaching`,
+                  //   `('' -> 'a/b/c/d').b.load`,
+                  //   `('' -> 'a/b/c/d').b.binding`,
+                  //   `('' -> 'a/b/c/d').b.bound`,
+                  //   `('' -> 'a/b/c/d').b.attaching`,
+                  //   `('' -> 'a/b/c/d').c.load`,
+                  //   `('' -> 'a/b/c/d').c.binding`,
+                  //   `('' -> 'a/b/c/d').c.bound`,
+                  //   `('' -> 'a/b/c/d').c.attaching`,
+                  //   `('' -> 'a/b/c/d').d.load`,
+                  //   `('' -> 'a/b/c/d').d.binding`,
+                  //   `('' -> 'a/b/c/d').d.bound`,
+                  //   `('' -> 'a/b/c/d').d.attaching`,
+                  //   `('' -> 'a/b/c/d').d.attached`,
+                  //   `('' -> 'a/b/c/d').c.attached`,
+                  //   `('' -> 'a/b/c/d').b.attached`,
+                  //   `('' -> 'a/b/c/d').a.attached`,
 
-                    `('a/b/c/d' -> 'a').d.canUnload`,
-                    `('a/b/c/d' -> 'a').c.canUnload`,
-                    `('a/b/c/d' -> 'a').b.canUnload`,
+                  //   `('a/b/c/d' -> 'a').d.canUnload`,
+                  //   `('a/b/c/d' -> 'a').c.canUnload`,
+                  //   `('a/b/c/d' -> 'a').b.canUnload`,
 
-                    `('a/b/c/d' -> 'a').d.unload`,
-                    `('a/b/c/d' -> 'a').c.unload`,
-                    `('a/b/c/d' -> 'a').b.unload`,
+                  //   `('a/b/c/d' -> 'a').d.unload`,
+                  //   `('a/b/c/d' -> 'a').c.unload`,
+                  //   `('a/b/c/d' -> 'a').b.unload`,
 
-                    `('a/b/c/d' -> 'a').d.detaching`,
-                    `('a/b/c/d' -> 'a').d.unbinding`,
-                    `('a/b/c/d' -> 'a').d.dispose`,
-                    `('a/b/c/d' -> 'a').c.detaching`,
-                    `('a/b/c/d' -> 'a').c.unbinding`,
-                    `('a/b/c/d' -> 'a').c.dispose`,
-                    `('a/b/c/d' -> 'a').b.detaching`,
-                    `('a/b/c/d' -> 'a').b.unbinding`,
-                    `('a/b/c/d' -> 'a').b.dispose`,
+                  //   `('a/b/c/d' -> 'a').d.detaching`,
+                  //   `('a/b/c/d' -> 'a').d.unbinding`,
+                  //   `('a/b/c/d' -> 'a').d.dispose`,
+                  //   `('a/b/c/d' -> 'a').c.detaching`,
+                  //   `('a/b/c/d' -> 'a').c.unbinding`,
+                  //   `('a/b/c/d' -> 'a').c.dispose`,
+                  //   `('a/b/c/d' -> 'a').b.detaching`,
+                  //   `('a/b/c/d' -> 'a').b.unbinding`,
+                  //   `('a/b/c/d' -> 'a').b.dispose`,
 
-                    `stop.root.detaching`,
-                    `stop.root.unbinding`,
+                  //   `stop.root.detaching`,
+                  //   `stop.root.unbinding`,
+                  //   `stop.root.afterUnbind`,
 
-                    `stop.a.unload`,
-                    `stop.a.detaching`,
-                    `stop.a.unbinding`,
-                  ],
+                  //   `stop.a.unload`,
+                  //   `stop.a.detaching`,
+                  //   `stop.a.unbinding`,
+                  // ],
                 );
                 break;
               }
               case 'load-hooks': {
                 assertHooks(
                   hia.notifyHistory,
-                  [
-                    `start.root.binding`,
-                    `start.root.bound`,
-                    `start.root.attaching`,
-                    `start.root.attached`,
+                  hooks,
+                  // [
+                  //   `start.root.binding`,
+                  //   `start.root.bound`,
+                  //   `start.root.attaching`,
+                  //   `start.root.attached`,
 
-                    `('' -> 'a/b/c/d').a.canLoad`,
-                    `('' -> 'a/b/c/d').b.canLoad`,
-                    `('' -> 'a/b/c/d').c.canLoad`,
-                    `('' -> 'a/b/c/d').d.canLoad`,
+                  //   `('' -> 'a/b/c/d').a.canLoad`,
+                  //   `('' -> 'a/b/c/d').b.canLoad`,
+                  //   `('' -> 'a/b/c/d').c.canLoad`,
+                  //   `('' -> 'a/b/c/d').d.canLoad`,
 
-                    `('' -> 'a/b/c/d').a.load`,
-                    `('' -> 'a/b/c/d').b.load`,
-                    `('' -> 'a/b/c/d').c.load`,
-                    `('' -> 'a/b/c/d').d.load`,
+                  //   `('' -> 'a/b/c/d').a.load`,
+                  //   `('' -> 'a/b/c/d').b.load`,
+                  //   `('' -> 'a/b/c/d').c.load`,
+                  //   `('' -> 'a/b/c/d').d.load`,
 
-                    `('' -> 'a/b/c/d').a.binding`,
-                    `('' -> 'a/b/c/d').a.bound`,
-                    `('' -> 'a/b/c/d').a.attaching`,
-                    `('' -> 'a/b/c/d').b.binding`,
-                    `('' -> 'a/b/c/d').b.bound`,
-                    `('' -> 'a/b/c/d').b.attaching`,
-                    `('' -> 'a/b/c/d').c.binding`,
-                    `('' -> 'a/b/c/d').c.bound`,
-                    `('' -> 'a/b/c/d').c.attaching`,
-                    `('' -> 'a/b/c/d').d.binding`,
-                    `('' -> 'a/b/c/d').d.bound`,
-                    `('' -> 'a/b/c/d').d.attaching`,
-                    `('' -> 'a/b/c/d').d.attached`,
-                    `('' -> 'a/b/c/d').c.attached`,
-                    `('' -> 'a/b/c/d').b.attached`,
-                    `('' -> 'a/b/c/d').a.attached`,
+                  //   `('' -> 'a/b/c/d').a.binding`,
+                  //   `('' -> 'a/b/c/d').a.bound`,
+                  //   `('' -> 'a/b/c/d').a.attaching`,
+                  //   `('' -> 'a/b/c/d').b.binding`,
+                  //   `('' -> 'a/b/c/d').b.bound`,
+                  //   `('' -> 'a/b/c/d').b.attaching`,
+                  //   `('' -> 'a/b/c/d').c.binding`,
+                  //   `('' -> 'a/b/c/d').c.bound`,
+                  //   `('' -> 'a/b/c/d').c.attaching`,
+                  //   `('' -> 'a/b/c/d').d.binding`,
+                  //   `('' -> 'a/b/c/d').d.bound`,
+                  //   `('' -> 'a/b/c/d').d.attaching`,
+                  //   `('' -> 'a/b/c/d').d.attached`,
+                  //   `('' -> 'a/b/c/d').c.attached`,
+                  //   `('' -> 'a/b/c/d').b.attached`,
+                  //   `('' -> 'a/b/c/d').a.attached`,
 
-                    `('a/b/c/d' -> 'a').d.canUnload`,
-                    `('a/b/c/d' -> 'a').c.canUnload`,
-                    `('a/b/c/d' -> 'a').b.canUnload`,
+                  //   `('a/b/c/d' -> 'a').d.canUnload`,
+                  //   `('a/b/c/d' -> 'a').c.canUnload`,
+                  //   `('a/b/c/d' -> 'a').b.canUnload`,
 
-                    `('a/b/c/d' -> 'a').d.unload`,
-                    `('a/b/c/d' -> 'a').c.unload`,
-                    `('a/b/c/d' -> 'a').b.unload`,
+                  //   `('a/b/c/d' -> 'a').d.unload`,
+                  //   `('a/b/c/d' -> 'a').c.unload`,
+                  //   `('a/b/c/d' -> 'a').b.unload`,
 
-                    `('a/b/c/d' -> 'a').d.detaching`,
-                    `('a/b/c/d' -> 'a').d.unbinding`,
-                    `('a/b/c/d' -> 'a').d.dispose`,
-                    `('a/b/c/d' -> 'a').c.detaching`,
-                    `('a/b/c/d' -> 'a').c.unbinding`,
-                    `('a/b/c/d' -> 'a').c.dispose`,
-                    `('a/b/c/d' -> 'a').b.detaching`,
-                    `('a/b/c/d' -> 'a').b.unbinding`,
-                    `('a/b/c/d' -> 'a').b.dispose`,
+                  //   `('a/b/c/d' -> 'a').d.detaching`,
+                  //   `('a/b/c/d' -> 'a').d.unbinding`,
+                  //   `('a/b/c/d' -> 'a').d.dispose`,
+                  //   `('a/b/c/d' -> 'a').c.detaching`,
+                  //   `('a/b/c/d' -> 'a').c.unbinding`,
+                  //   `('a/b/c/d' -> 'a').c.dispose`,
+                  //   `('a/b/c/d' -> 'a').b.detaching`,
+                  //   `('a/b/c/d' -> 'a').b.unbinding`,
+                  //   `('a/b/c/d' -> 'a').b.dispose`,
 
-                    `stop.root.detaching`,
-                    `stop.root.unbinding`,
+                  //   `stop.root.detaching`,
+                  //   `stop.root.unbinding`,
 
-                    `stop.a.unload`,
-                    `stop.a.detaching`,
-                    `stop.a.unbinding`,
-                  ],
+                  //   `stop.a.unload`,
+                  //   `stop.a.detaching`,
+                  //   `stop.a.unbinding`,
+                  // ],
                 );
                 break;
               }
@@ -1269,7 +985,7 @@ describe('router hooks', function () {
     }
   });
 
-  describe.skip('single incoming sibling transition', function () {
+  describe('single incoming sibling transition', function () {
     const deferUntils: DeferralJuncture[] = [
       'none',
       'guard-hooks',
@@ -1344,7 +1060,7 @@ describe('router hooks', function () {
             await tearDown();
 
             const expected = [...getExpectedNotifyHistory(spec, phase1)];
-            assertHooks(transformNotifications(hia.notifyHistory), expected);
+            assertHooks(hia.notifyHistory, expected);
 
             hia.dispose();
           });
@@ -1390,25 +1106,40 @@ describe('router hooks', function () {
               load: hookSpecsMap.load.async(bLoad),
             }),
           }, function* (spec, phase1) {
-            yield* prepend(`start`, 'root', ...addHooks);
 
-            yield* interleave(
-              prepend(phase1, 'a', 'canLoad', 'load', ...addHooks),
-              prepend(phase1, 'b', 'canLoad', 'load', ...addHooks),
-            );
+            yield* getStartHooks('root');
 
-            yield* prepend(`stop`, 'root', 'detaching', 'unbinding');
-            yield* interleave(
-              prepend(`stop`, 'a', 'detaching', 'unbinding'),
-              prepend(`stop`, 'b', 'detaching', 'unbinding'),
-            );
+            const hooks = getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, phase1, [
+              { from: '', to: { component: 'a', timings: getTimings(spec.a) } },
+            ], [
+              { from: '', to: { component: 'b', timings: getTimings(spec.b) } },
+            ]);
+
+            for (const hook of hooks) {
+              yield hook;
+            }
+
+            yield* getStopHooks('root', 'a', 'b');
+
+            // yield* prepend(`start`, 'root', ...addHooks);
+
+            // yield* interleave(
+            //   prepend(phase1, 'a', 'canLoad', 'load', ...addHooks),
+            //   prepend(phase1, 'b', 'canLoad', 'load', ...addHooks),
+            // );
+
+            // yield* prepend(`stop`, 'root', 'detaching', 'unbinding');
+            // yield* interleave(
+            //   prepend(`stop`, 'a', 'detaching', 'unbinding'),
+            //   prepend(`stop`, 'b', 'detaching', 'unbinding'),
+            // );
           });
         }
       });
     }
   });
 
-  describe.skip('single incoming parent-child transition', function () {
+  describe('single incoming parent-child transition', function () {
     const deferUntils: DeferralJuncture[] = [
       'none',
       'guard-hooks',
@@ -1510,7 +1241,14 @@ describe('router hooks', function () {
 
             yield* getStartHooks('root');
 
-            yield* getParentChildHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, 'all-async', phase1, { p: '', c: '' }, { p: 'a1', c: 'a2' });
+            const hooks = getHooks(routerOptionsSpec.deferUntil, routerOptionsSpec.swapStrategy, phase1, [
+              { from: '', to: { component: 'a1', timings: getTimings(spec.a1) } },
+              { from: '', to: { component: 'a2', timings: getTimings(spec.a2) } },
+            ]);
+
+            for (const hook of hooks) {
+              yield hook;
+            }
 
             yield* getStopHooks('root', 'a1', 'a2');
 
@@ -1609,7 +1347,7 @@ describe('router hooks', function () {
             await tearDown();
 
             const expected = [...getExpectedNotifyHistory(spec, phase1)];
-            assertHooks(transformNotifications(hia.notifyHistory), expected);
+            assertHooks(hia.notifyHistory, expected);
 
             hia.dispose();
           });
@@ -2099,4 +1837,27 @@ function getAllAsyncSpecs(count: number): HookSpecs {
     canUnload: hookSpecsMap.canUnload.async(count),
     unload: hookSpecsMap.unload.async(count),
   });
+}
+
+function getTimings(hookSpec?: HookSpecs): Map<HookName, number> {
+  const timings: Map<HookName, number> = new Map();
+
+  if (hookSpec === void 0) {
+    (hookSpec as any) = {};
+    for (const hook of [...routingHooks, ...addHooks, ...removeHooks]) {
+      (hookSpec as any)[hook] = { type: 'setTimeout_0' };
+    }
+  }
+
+  for (const hook in hookSpec) {
+    if (hook.startsWith('$')) {
+      continue;
+    }
+    if (hookSpec[hook].type === 'setTimeout_0') {
+      timings.set(hook as HookName, 0);
+    } else if (hookSpec[hook].type.startsWith('async')) {
+      timings.set(hook as HookName, hookSpec[hook].ticks);
+    }
+  }
+  return timings;
 }

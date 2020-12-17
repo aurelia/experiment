@@ -1,14 +1,16 @@
-import { Constructable, LogLevel, Registration, ILogConfig, LoggerConfiguration } from '@aurelia/kernel';
+import { Constructable, LogLevel, Registration, ILogConfig, LoggerConfiguration, DI } from '@aurelia/kernel';
 import { Aurelia } from '@aurelia/runtime-html';
 import { RouterConfiguration, IRouter, IRouterActivateOptions, NavigationState } from '@aurelia/router';
 import { TestContext } from '@aurelia/testing';
 
 import { IHIAConfig, IHookInvocationAggregator } from './hook-invocation-tracker.js';
 import { TestRouterConfiguration } from './configuration.js';
+import { startTickLogging } from './tick-logger.js';
 
 export interface IRouterOptionsSpec {
-  deferUntil: DeferralJuncture;
-  swapStrategy: SwapStrategy;
+  deferUntil?: DeferralJuncture;
+  swapStrategy?: SwapStrategy;
+  routingMode?: 'configured-first' | 'configured-only' | 'direct-only';
   toString(): string;
 }
 
@@ -26,6 +28,10 @@ export function translateOptions(routerOptionsSpec: IRouterOptionsSpec): IRouter
       break;
     case 'parallel-remove-first':
       swap = 'remove-first-parallel';
+      break;
+    default:
+    case 'sequential-add-first':
+      swap = 'add-first-sequential';
       break;
   }
   const syncStates = ['guardedUnload', 'swapped', 'completed'] as NavigationState[];
@@ -50,10 +56,18 @@ export function translateOptions(routerOptionsSpec: IRouterOptionsSpec): IRouter
   };
 }
 
-export function transformNotifications(notifications: string[]): string[] {
-  return notifications.filter(notification => !(/^stop\..*?\.unload$/.test(notification)));
-}
+export const IActivityTracker = DI.createInterface<IActivityTracker>('IActivityTracker').withDefault(x => x.singleton(ActivityTracker));
+export interface IActivityTracker extends ActivityTracker { }
+export class ActivityTracker {
+  public readonly activeVMs: string[] = [];
 
+  public setActive(vm: string): void {
+    this.activeVMs.push(vm);
+  }
+  public setNonActive(vm: string): void {
+    this.activeVMs.splice(this.activeVMs.indexOf(vm), 1);
+  }
+}
 export async function createFixture<T extends Constructable>(
   Component: T,
   deps: Constructable[],
@@ -66,13 +80,20 @@ export async function createFixture<T extends Constructable>(
   const ctx = TestContext.create();
   const { container, platform } = ctx;
 
+  const { href } = platform.location;
+  const { state } = platform.history;
+  const index = href.indexOf('#');
+  if (index >= 0) {
+    platform.history.replaceState(state, '', href.slice(0, index));
+    await Promise.resolve();
+  }
   container.register(Registration.instance(IHIAConfig, hiaConfig));
   container.register(TestRouterConfiguration.for(ctx, level));
   container.register(RouterConfiguration.customize(routerOptions));
   container.register(LoggerConfiguration.create({ $console: console, level: LogLevel.trace }));
   container.register(...deps);
 
-  // const activityTracker = container.get(IActivityTracker);
+  const activityTracker = container.get(IActivityTracker);
   const hia = container.get(IHookInvocationAggregator);
   const router = container.get(IRouter);
   const component = container.get(Component);
@@ -98,7 +119,7 @@ export async function createFixture<T extends Constructable>(
     component,
     platform,
     router,
-    // activityTracker,
+    activityTracker,
     startTracing() {
       logConfig.level = LogLevel.trace;
     },
@@ -108,9 +129,20 @@ export async function createFixture<T extends Constructable>(
     async tearDown() {
       hia.setPhase('stop');
 
-      await au.stop();
+      await au.stop(true);
 
-      au.dispose();
+      //      au.dispose();
+
+      const { href } = platform.location;
+      const { state } = platform.history;
+      const index = href.indexOf('#');
+      if (index >= 0) {
+        platform.history.replaceState(state, '', href.slice(0, index));
+        // await Promise.resolve();
+      }
     },
+    logTicks(callback: (tick: number) => void): () => void {
+      return startTickLogging(window, callback);
+    }
   };
 }

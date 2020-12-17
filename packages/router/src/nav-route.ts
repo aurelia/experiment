@@ -1,7 +1,13 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 import { Constructable } from '@aurelia/kernel';
-import { RouteableComponentType, NavigationInstruction } from './interfaces.js';
+import { RouteableComponentType, LoadInstruction } from './interfaces.js';
 import { INavRoute, Nav } from './nav.js';
-import { ComponentAppellationResolver, NavigationInstructionResolver } from './type-resolvers.js';
+import { ComponentAppellationResolver, LoadInstructionResolver } from './type-resolvers.js';
 import { ViewportInstruction } from './viewport-instruction.js';
 
 /**
@@ -13,7 +19,7 @@ export class NavRoute {
   public link: string | null = null;
   public execute?: ((route: NavRoute) => void);
   public linkVisible: boolean | ((route: NavRoute) => boolean) | null = null;
-  public linkActive: NavigationInstruction | NavigationInstruction[] | ((route: NavRoute) => boolean) | null = null;
+  public linkActive: LoadInstruction | LoadInstruction[] | ((route: NavRoute) => boolean) | null = null;
   public compareParameters: boolean = false;
   public children: NavRoute[] | null = null;
   public meta?: Record<string, unknown>;
@@ -34,7 +40,7 @@ export class NavRoute {
     }
     this.linkActive = route.consideredActive !== null && route.consideredActive !== void 0 ? route.consideredActive : this.link;
     if (this.linkActive !== null && (!(this.linkActive instanceof Function) || ComponentAppellationResolver.isType(this.linkActive as RouteableComponentType))) {
-      this.linkActive = NavigationInstructionResolver.toViewportInstructions(this.nav.router, this.linkActive as NavigationInstruction | NavigationInstruction[]);
+      this.linkActive = LoadInstructionResolver.toViewportInstructions(this.nav.router, this.linkActive as LoadInstruction | LoadInstruction[]);
     }
     this.execute = route.execute;
     this.compareParameters = !!route.compareParameters;
@@ -66,8 +72,8 @@ export class NavRoute {
     this.active = (this.active.startsWith('nav-active') ? '' : 'nav-active');
   }
 
-  private parseRoute<C extends Constructable>(routes: NavigationInstruction | NavigationInstruction[]): ViewportInstruction[] {
-    return NavigationInstructionResolver.toViewportInstructions(this.nav.router, routes);
+  private parseRoute<C extends Constructable>(routes: LoadInstruction | LoadInstruction[]): ViewportInstruction[] {
+    return LoadInstructionResolver.toViewportInstructions(this.nav.router, routes);
   }
 
   private computeVisible(): boolean {

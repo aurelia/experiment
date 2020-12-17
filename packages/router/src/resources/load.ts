@@ -1,6 +1,12 @@
-import { customAttribute, INode, bindable, BindingMode, IObserverLocator, CustomAttribute, ICustomAttributeController, ICustomAttributeViewModel } from '@aurelia/runtime-html';
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
+import { customAttribute, INode, bindable, BindingMode, IObserverLocator, LifecycleFlags, CustomAttribute, ICustomAttributeController, ICustomAttributeViewModel } from '@aurelia/runtime-html';
 import { IRouter } from '../router.js';
-import { NavigationInstructionResolver } from '../type-resolvers.js';
+import { LoadInstructionResolver } from '../type-resolvers.js';
 
 @customAttribute('load')
 export class LoadCustomAttribute implements ICustomAttributeViewModel {
@@ -50,8 +56,8 @@ export class LoadCustomAttribute implements ICustomAttributeViewModel {
 
   public handleChange(): void {
     const controller = CustomAttribute.for(this.element, 'load')!.parent!;
-    const created = NavigationInstructionResolver.createViewportInstructions(this.router, this.value as any, { context: controller });
-    const instructions = NavigationInstructionResolver.toViewportInstructions(this.router, created.instructions);
+    const created = LoadInstructionResolver.createViewportInstructions(this.router, this.value as any, { context: controller });
+    const instructions = LoadInstructionResolver.toViewportInstructions(this.router, created.instructions);
     for (const instruction of instructions) {
       if (instruction.scope === null) {
         instruction.scope = created.scope;

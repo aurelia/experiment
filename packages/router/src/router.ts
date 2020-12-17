@@ -1,16 +1,22 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 /* eslint-disable no-template-curly-in-string */
 /* eslint-disable prefer-template */
 /* eslint-disable max-lines-per-function */
-import { DI, IContainer, Registration, IIndexable, Key, Metadata } from '@aurelia/kernel';
+import { DI, IContainer, Registration, IIndexable, Key, Metadata, EventAggregator, IEventAggregator, IDisposable } from '@aurelia/kernel';
 import { CustomElementType, CustomElement, INode, ICustomElementController, ICustomElementViewModel, IAppRoot, isRenderContext, getEffectiveParentNode } from '@aurelia/runtime-html';
 import { InstructionResolver } from './instruction-resolver.js';
-import { IRouteableComponent, NavigationInstruction, IRoute, ComponentAppellation, ViewportHandle, ComponentParameters } from './interfaces.js';
+import { IRouteableComponent, LoadInstruction, ComponentAppellation, ViewportHandle, ComponentParameters } from './interfaces.js';
 import { AnchorEventInfo, LinkHandler } from './link-handler.js';
 import { INavRoute, Nav } from './nav.js';
-import { INavigatorViewerEvent, IStoredNavigatorEntry, Navigator } from './navigator.js';
+import { NavigatorViewerEvent, IStoredNavigatorEntry, Navigator } from './navigator.js';
 import { QueueItem } from './queue.js';
 import { INavClasses } from './resources/nav.js';
-import { NavigationInstructionResolver, IViewportInstructionsOptions } from './type-resolvers.js';
+import { LoadInstructionResolver, IViewportInstructionsOptions } from './type-resolvers.js';
 import { arrayRemove, deprecationWarning } from './utils.js';
 import { IViewportOptions, Viewport } from './viewport.js';
 import { ViewportInstruction } from './viewport-instruction.js';
@@ -24,6 +30,9 @@ import { IConnectedCustomElement } from './resources/viewport.js';
 import { NavigationCoordinator } from './navigation-coordinator.js';
 import { IRouterActivateOptions, RouterOptions } from './router-options.js';
 import { OpenPromise } from './open-promise.js';
+import { NavigatorStateChangeEvent } from './events.js';
+import { Runner } from './runner.js';
+import { IRoute, Route } from './route.js';
 
 /**
  * Public API
@@ -99,7 +108,7 @@ class ClosestViewportCustomElement { }
 class ClosestScope { }
 
 export class Router implements IRouter {
-  public static readonly inject: readonly Key[] = [IContainer, Navigator, BrowserViewerStore, LinkHandler, InstructionResolver, HookManager, RouterOptions];
+  public static readonly inject: readonly Key[] = [IContainer, IEventAggregator, Navigator, BrowserViewerStore, LinkHandler, InstructionResolver, HookManager, RouterOptions];
 
   public rootScope: ViewportScope | null = null;
 
@@ -119,7 +128,7 @@ export class Router implements IRouter {
   /**
    * Public API
    */
-  public activeRoute?: IRoute;
+  public activeRoute?: Route;
 
   /**
    * @internal
@@ -157,11 +166,14 @@ export class Router implements IRouter {
   private lastNavigation: Navigation | null = null;
   private staleChecks: Record<string, ViewportInstruction[]> = {};
 
+  private navigatorStateChangeEventSubscription!: IDisposable;
+
   public constructor(
     /**
      * @internal - Shouldn't be used directly.
      */
     public readonly container: IContainer,
+    @IEventAggregator private readonly ea: EventAggregator,
     /**
      * @internal - Shouldn't be used directly.
      */
@@ -246,10 +258,10 @@ export class Router implements IRouter {
       serializeCallback: this.statefulHistory ? this.navigatorSerializeCallback : void 0,
     });
     this.linkHandler.start({ callback: this.linkCallback, useHref: this.options.useHref });
-    this.navigation.start({
-      callback: this.browserNavigatorCallback,
-      useUrlFragmentHash: this.options.useUrlFragmentHash
-    });
+
+    this.navigatorStateChangeEventSubscription = this.ea.subscribe(NavigatorStateChangeEvent.eventName, this.handleNavigatorStateChangeEvent);
+    this.navigation.start({ useUrlFragmentHash: this.options.useUrlFragmentHash });
+
     this.ensureRootScope();
     // TODO: Switch this to use (probably) an event instead
     for (const starter of this.starters) {
@@ -284,6 +296,8 @@ export class Router implements IRouter {
     this.linkHandler.stop();
     this.navigator.stop();
     this.navigation.stop();
+
+    this.navigatorStateChangeEventSubscription.dispose();
   }
 
   /**
@@ -356,6 +370,7 @@ export class Router implements IRouter {
 
     const alreadyDone: IRouteableComponent[] = [];
     for (const instruction of instructions) {
+      console.log('AWAIT freeComponents');
       await this.freeComponents(instruction, excludeComponents, alreadyDone);
     }
     return serialized;
@@ -366,9 +381,18 @@ export class Router implements IRouter {
    */
   // TODO: use @bound and improve name (eslint-disable is temp)
   // eslint-disable-next-line @typescript-eslint/typedef
-  public browserNavigatorCallback = (browserNavigationEvent: INavigatorViewerEvent): void => {
+  public browserNavigatorCallback = (browserNavigationEvent: NavigatorViewerEvent): void => {
+    console.log('browserNavigatorCallback', browserNavigationEvent);
     const entry = new Navigation(browserNavigationEvent.state?.currentEntry);
     entry.instruction = browserNavigationEvent.instruction;
+    entry.fromBrowser = true;
+    this.navigator.navigate(entry).catch(error => { throw error; });
+  };
+
+  public handleNavigatorStateChangeEvent = (event: NavigatorStateChangeEvent): void => {
+    console.log('handleNavigatorStateChangeEvent', event);
+    const entry = new Navigation(event.state?.currentEntry);
+    entry.instruction = event.instruction;
     entry.fromBrowser = true;
     this.navigator.navigate(entry).catch(error => { throw error; });
   };
@@ -495,6 +519,7 @@ export class Router implements IRouter {
       const changedScopeOwners: IScopeOwner[] = [];
 
       // TODO: Review whether this await poses a problem (it's currently necessary for new viewports to load)
+      // console.log('AWAIT invokeBeforeNavigation', instruction.instruction);
       const hooked = await this.hookManager.invokeBeforeNavigation(viewportInstructions, instruction);
       if (hooked === false) {
         coordinator.cancel();
@@ -583,7 +608,11 @@ export class Router implements IRouter {
         if (!this.isRestrictedNavigation) {
           // await Promise.resolve();
           // console.log('Awaiting swapped');
-          await coordinator.syncState('swapped');
+          const waitForSwapped = coordinator.waitForSyncState('swapped');
+          if (waitForSwapped instanceof Promise) {
+            console.log('AWAIT waitForSwapped');
+            await waitForSwapped;
+          }
           // console.log('Awaited swapped');
           // console.log('pendingConnects before find new', [...this.pendingConnects]);
           // const pending = [...this.pendingConnects.values()].filter(connect => connect.isPending);
@@ -665,11 +694,12 @@ export class Router implements IRouter {
       // await new Promise(res => setTimeout(res, 100));
     } while (viewportInstructions.length > 0 || remainingInstructions.length > 0);
 
+    /*
     coordinator.finalEntity();
 
     // await Promise.all(updatedScopeOwners.map((value) => value.loadContent()));
 
-    await coordinator.syncState('completed');
+    await coordinator.waitForSyncState('completed');
     coordinator.finalize();
     // updatedScopeOwners.forEach((viewport) => {
     //   viewport.finalizeContentChange();
@@ -691,6 +721,41 @@ export class Router implements IRouter {
     }
     this.processingNavigation = null;
     await this.navigator.finalize(instruction);
+    */
+
+    return Runner.run(null,
+      () => {
+        coordinator.finalEntity();
+
+        // await Promise.all(updatedScopeOwners.map((value) => value.loadContent()));
+        return coordinator.waitForSyncState('completed');
+      },
+      () => {
+        coordinator.finalize();
+        // updatedScopeOwners.forEach((viewport) => {
+        //   viewport.finalizeContentChange();
+        // });
+
+        return this.replacePaths(instruction);
+      },
+      () => {
+        // this.updateNav();
+
+        // Remove history entry if no history viewports updated
+        if (instruction.navigation!.new && !instruction.navigation!.first && !instruction.repeating && updatedScopeOwners.every(viewport => viewport.options.noHistory)) {
+          instruction.untracked = true;
+        }
+        // updatedScopeOwners.forEach((viewport) => {
+        //   viewport.finalizeContentChange();
+        // });
+        this.lastNavigation = this.processingNavigation;
+        if (this.lastNavigation?.repeating ?? false) {
+          this.lastNavigation!.repeating = false;
+        }
+        this.processingNavigation = null;
+        return this.navigator.finalize(instruction);
+      },
+    );
   };
 
   /**
@@ -842,11 +907,11 @@ export class Router implements IRouter {
   /**
    * Public API - THE navigation API
    */
-  public async goto(instructions: NavigationInstruction | NavigationInstruction[], options?: ILoadOptions): Promise<void> {
+  public async goto(instructions: LoadInstruction | LoadInstruction[], options?: ILoadOptions): Promise<void> {
     deprecationWarning('"goto" method', '"load" method');
     return this.load(instructions, options);
   }
-  public async load(instructions: NavigationInstruction | NavigationInstruction[], options?: ILoadOptions): Promise<void> {
+  public async load(instructions: LoadInstruction | LoadInstruction[], options?: ILoadOptions): Promise<void> {
     options = options || {};
     // TODO: Review query extraction; different pos for path and fragment!
     if (typeof instructions === 'string' && !options.query) {
@@ -860,10 +925,10 @@ export class Router implements IRouter {
     }
 
     let scope: Scope | null = null;
-    ({ instructions, scope } = NavigationInstructionResolver.createViewportInstructions(this, instructions, toOptions));
+    ({ instructions, scope } = LoadInstructionResolver.createViewportInstructions(this, instructions, toOptions));
 
-    if (options.append && this.processingNavigation) {
-      instructions = NavigationInstructionResolver.toViewportInstructions(this, instructions);
+    if (options.append && (!this.loadedFirst || this.processingNavigation !== null)) {
+      instructions = LoadInstructionResolver.toViewportInstructions(this, instructions);
       this.appendInstructions(instructions as ViewportInstruction[], scope);
       // Can't return current navigation promise since it can lead to deadlock in load
       return Promise.resolve();
@@ -1247,7 +1312,7 @@ export class Router implements IRouter {
       return instruction.viewport!.getTitle(navigationInstruction);
     } else if (instruction instanceof FoundRoute) {
       const routeTitle = instruction.match?.title;
-      if (routeTitle !== void 0) {
+      if ((routeTitle ?? null) !== null) {
         if (typeof routeTitle === 'string') {
           title = routeTitle;
         } else {
@@ -1255,8 +1320,8 @@ export class Router implements IRouter {
         }
       }
     }
-    if (this.options.title.transformTitle !== void 0) {
-      title = this.options.title.transformTitle.call(this, title, instruction);
+    if ((this.options.title.transformTitle ?? null) !== null) {
+      title = this.options.title.transformTitle!.call(this, title, instruction);
     }
     return title;
   }
@@ -1268,12 +1333,14 @@ export class Router implements IRouter {
       return;
     }
     if (!excludeComponents.some(exclude => exclude === component)) {
+      console.log('AWAIT freeContent');
       await viewport.freeContent(component);
       alreadyDone.push(component);
       return;
     }
     if (instruction.nextScopeInstructions !== null) {
       for (const nextInstruction of instruction.nextScopeInstructions) {
+        console.log('AWAIT freeComponents');
         await this.freeComponents(nextInstruction, excludeComponents, alreadyDone);
       }
     }

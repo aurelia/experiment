@@ -1,10 +1,16 @@
+/**
+ *
+ * NOTE: This file is still WIP and will go through at least one more iteration of refactoring, commenting and clean up!
+ *       In its current state, it is NOT a good source for learning about the inner workings and design of the router.
+ *
+ */
 import { IViewportScopeOptions, ViewportScope } from './viewport-scope.js';
 import { CustomElementType } from '@aurelia/runtime-html';
-import { IRoute, ComponentAppellation, NavigationInstruction } from './interfaces.js';
+import { LoadInstruction } from './interfaces.js';
 import { FoundRoute } from './found-route.js';
 import { IRouter } from './router.js';
 import { ViewportInstruction } from './viewport-instruction.js';
-import { NavigationInstructionResolver } from './type-resolvers.js';
+import { LoadInstructionResolver } from './type-resolvers.js';
 import { Viewport, IViewportOptions } from './viewport.js';
 import { arrayRemove } from './utils.js';
 import { Collection } from './collection.js';
@@ -13,6 +19,7 @@ import { Navigation } from './navigation.js';
 import { IConnectedCustomElement } from './resources/viewport.js';
 import { NavigationCoordinator } from './navigation-coordinator.js';
 import { Runner } from './runner.js';
+import { IRoute, Route } from './route.js';
 
 export type NextContentAction = 'skip' | 'reload' | 'swap' | '';
 
@@ -55,7 +62,7 @@ export interface IScopeOwner {
   setNextContent(viewportInstruction: ViewportInstruction, navigation: Navigation): NextContentAction;
   transition(coordinator: NavigationCoordinator): void;
   canUnload(): boolean | Promise<boolean>;
-  canLoad(recurse: boolean): boolean | NavigationInstruction | NavigationInstruction[] | Promise<boolean | NavigationInstruction | NavigationInstruction[]>;
+  canLoad(recurse: boolean): boolean | LoadInstruction | LoadInstruction[] | Promise<boolean | LoadInstruction | LoadInstruction[]>;
   load(recurse: boolean): void | Promise<void>;
   unload(recurse: boolean): void | Promise<void>;
   // loadContent(): Promise<boolean>;
@@ -93,6 +100,10 @@ export class Scope {
     this.owningScope = owningScope ?? this;
     this.scope = this.hasScope ? this : this.owningScope.scope;
     // console.log('Created scope', this.toString());
+  }
+
+  public get pathname(): string {
+    return `${this.owningScope !== this ? this.owningScope!.pathname : ''}/${this.owner!.name}`;
   }
 
   public toString(recurse = false): string {
@@ -530,7 +541,7 @@ export class Scope {
     return null;
   }
 
-  public canLoad(recurse: boolean): boolean | NavigationInstruction | NavigationInstruction[] | Promise<boolean | NavigationInstruction | NavigationInstruction[]> {
+  public canLoad(recurse: boolean): boolean | LoadInstruction | LoadInstruction[] | Promise<boolean | LoadInstruction | LoadInstruction[]> {
     const results = Runner.runAll(
       this.children.map(child =>
         child.viewport !== null
@@ -538,8 +549,10 @@ export class Scope {
           : child.canLoad(recurse))
     );
     if (results instanceof Promise) {
-      return results.then(resolvedResults =>
-        resolvedResults.every(result => result as boolean)
+      return results.then(resolvedResults => {
+        // console.log('then', 'canLoad');
+        return resolvedResults.every(result => result as boolean);
+      }
       );
     }
     return results.every(result => result as boolean);
@@ -554,6 +567,7 @@ export class Scope {
     );
     if (results instanceof Promise) {
       return results.then(resolvedResults => {
+        // console.log('then', 'canUnload');
         return resolvedResults.every(result => result as boolean);
       }
       );
@@ -597,7 +611,7 @@ export class Scope {
     }
   }
 
-  private findMatchingRouteInRoutes(path: string, routes: IRoute[] | null): FoundRoute | null {
+  private findMatchingRouteInRoutes(path: string, routes: Route[] | null): FoundRoute | null {
     if (!Array.isArray(routes)) {
       return null;
     }
@@ -622,7 +636,7 @@ export class Scope {
     const recognizer = new RouteRecognizer();
 
     recognizer.add(cRoutes);
-    const result = recognizer.recognize(path);
+    let result = recognizer.recognize(path);
     if (result !== null) {
       found.match = result.endpoint.route.handler;
       found.matching = path;
@@ -633,6 +647,13 @@ export class Scope {
         found.matching = found.matching.slice(0, found.matching.indexOf(found.remaining));
       }
       found.params = $params;
+      if (found.match.redirectTo !== null) {
+        let redirectedTo = found.match.redirectTo;
+        if ((found.remaining ?? '').length > 0) {
+          redirectedTo += `/${found.remaining}`;
+        }
+        return this.findMatchingRouteInRoutes(redirectedTo, routes);
+      }
     }
     if (found.foundConfiguration) {
       // clone it so config doesn't get modified
@@ -653,7 +674,7 @@ export class Scope {
     return found;
   }
 
-  private ensureProperRoute(route: IRoute): IRoute {
+  private ensureProperRoute(route: IRoute): Route {
     if (route.id === void 0) {
       route.id = route.path;
     }
@@ -665,7 +686,9 @@ export class Scope {
         children: route.children,
       }];
     }
-    route.instructions = NavigationInstructionResolver.toViewportInstructions(this.router, route.instructions!);
-    return route;
+    if (route.redirectTo === null) {
+      route.instructions = LoadInstructionResolver.toViewportInstructions(this.router, route.instructions!);
+    }
+    return route as Route;
   }
 }

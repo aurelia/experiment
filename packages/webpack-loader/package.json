@@ -42,9 +42,9 @@
     "loader-utils": "^2.0.0"
   },
   "devDependencies": {
-    "@types/node": "^14.11.5",
+    "@types/node": "^14.14.14",
     "@types/loader-utils": "^2.0.1",
-    "@types/webpack": "^4.41.0",
-    "typescript": "^4.0.3"
+    "@types/webpack": "^4.41.25",
+    "typescript": "^4.1.3"
   }
 }

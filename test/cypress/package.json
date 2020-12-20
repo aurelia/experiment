@@ -11,6 +11,6 @@
   "author": "Dwayne Charrington <dwaynecharrington@gmail.com>",
   "license": "MIT",
   "devDependencies": {
-    "cypress": "^3.8.0"
+    "cypress": "^6.1.0"
   }
 }

@@ -137,7 +137,20 @@ describe('@attributePattern', function () {
         ['value:bind',   null,           []],
         ['value@bind',   null,           []]
       ]
-    ]
+    ],
+    // overlapping characters for promise + i18n combo
+    [
+      [
+        { pattern: 't', symbols: '' },
+        { pattern: 'then', symbols: '' },
+        { pattern: 't-params.bind', symbols: '' },
+      ],
+      [
+        ['t', 't', ['t']],
+        ['then',  'then', ['then']],
+        ['t-params.bind', 't-params.bind', ['t-params.bind']],
+      ]
+    ],
   ] as [AttributePatternDefinition[], [string, string, string[]][]][]) {
     describe(`parse [${defs.map(d => d.pattern)}]`, function () {
       for (const [value, match, values] of tests) {
@@ -166,7 +179,7 @@ describe('@attributePattern', function () {
             assert.strictEqual(
               patternDefs.map(d => d.pattern).includes(result.pattern),
               true,
-              `patternDefs.map(d => d.pattern).indexOf(result.pattern) >= 0`
+              `patternDefs.map(d => d.pattern).indexOf(result.pattern) >= 0\n  result: ${result.pattern}`
             );
             attrPattern[result.pattern](value, 'foo', result.parts);
             assert.strictEqual(receivedRawName, value, `receivedRawName`);

@@ -150,7 +150,8 @@ export class State {
     const nextStates = this.nextStates;
     const len = nextStates.length;
     let child: State = null!;
-    for (let i = 0; i < len; ++i) {
+    let i = 0;
+    for (; i < len; ++i) {
       child = nextStates[i];
       if (charSpec.equals(child.charSpec)) {
         return child;
@@ -306,9 +307,10 @@ export class SyntaxInterpreter {
 
   public interpret(name: string): Interpretation {
     const interpretation = new Interpretation();
-    let states = this.initialStates;
     const len = name.length;
-    for (let i = 0; i < len; ++i) {
+    let states = this.initialStates;
+    let i = 0;
+    for (; i < len; ++i) {
       states = this.getNextStates(states, name.charAt(i), interpretation);
       if (states.length === 0) {
         break;
@@ -325,6 +327,8 @@ export class SyntaxInterpreter {
       } else {
         return 0;
       }
+      // both a and b are endpoints
+      // compare them based on the number of static, then dynamic & symbol fragments
       const aTypes = a.types!;
       const bTypes = b.types!;
       if (aTypes.statics !== bTypes.statics) {
@@ -354,7 +358,8 @@ export class SyntaxInterpreter {
     const nextStates: State[] = [];
     let state: State = null!;
     const len = states.length;
-    for (let i = 0; i < len; ++i) {
+    let i = 0;
+    for (; i < len; ++i) {
       state = states[i];
       nextStates.push(...state.findMatches(ch, interpretation));
     }

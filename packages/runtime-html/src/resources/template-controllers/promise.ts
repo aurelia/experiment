@@ -15,6 +15,7 @@ import {
 } from '../../templating/controller.js';
 import { ICompiledRenderContext } from '../../templating/render-context.js';
 import { IViewFactory } from '../../templating/view.js';
+import { attributePattern, AttrSyntax } from '../attribute-pattern.js';
 import { templateController } from '../custom-attribute.js';
 
 @templateController('promise')
@@ -322,24 +323,23 @@ function getPromiseController(controller: IHydratableController) {
   throw new Error('The parent promise.resolve not found; only `*[promise.resolve] > *[pending|then|catch]` relation is supported.');
 }
 
-// TODO: activate after the attribute parser and/or interpreter such that for `t`, `then` is not picked up.
-// @attributePattern({ pattern: 'promise.resolve', symbols: '' })
-// export class PromiseAttributePattern {
-//   public 'promise.resolve'(name: string, value: string, _parts: string[]): AttrSyntax {
-//     return new AttrSyntax(name, value, 'promise', 'bind');
-//   }
-// }
+@attributePattern({ pattern: 'promise.resolve', symbols: '' })
+export class PromiseAttributePattern {
+  public 'promise.resolve'(name: string, value: string, _parts: string[]): AttrSyntax {
+    return new AttrSyntax(name, value, 'promise', 'bind');
+  }
+}
 
-// @attributePattern({ pattern: 'then', symbols: '' })
-// export class FulfilledAttributePattern {
-//   public 'then'(name: string, value: string, _parts: string[]): AttrSyntax {
-//     return new AttrSyntax(name, value, 'then', 'from-view');
-//   }
-// }
+@attributePattern({ pattern: 'then', symbols: '' })
+export class FulfilledAttributePattern {
+  public 'then'(name: string, value: string, _parts: string[]): AttrSyntax {
+    return new AttrSyntax(name, value, 'then', 'from-view');
+  }
+}
 
-// @attributePattern({ pattern: 'catch', symbols: '' })
-// export class RejectedAttributePattern {
-//   public 'catch'(name: string, value: string, _parts: string[]): AttrSyntax {
-//     return new AttrSyntax(name, value, 'catch', 'from-view');
-//   }
-// }
+@attributePattern({ pattern: 'catch', symbols: '' })
+export class RejectedAttributePattern {
+  public 'catch'(name: string, value: string, _parts: string[]): AttrSyntax {
+    return new AttrSyntax(name, value, 'catch', 'from-view');
+  }
+}

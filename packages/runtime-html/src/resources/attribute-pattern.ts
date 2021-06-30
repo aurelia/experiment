@@ -310,6 +310,7 @@ export class SyntaxInterpreter {
     const len = name.length;
     let states = this.initialStates;
     let i = 0;
+    let state: State;
     for (; i < len; ++i) {
       states = this.getNextStates(states, name.charAt(i), interpretation);
       if (states.length === 0) {
@@ -317,34 +318,11 @@ export class SyntaxInterpreter {
       }
     }
 
-    states.sort((a, b) => {
-      if (a.isEndpoint) {
-        if (!b.isEndpoint) {
-          return -1;
-        }
-      } else if (b.isEndpoint) {
-        return 1;
-      } else {
-        return 0;
-      }
-      // both a and b are endpoints
-      // compare them based on the number of static, then dynamic & symbol fragments
-      const aTypes = a.types!;
-      const bTypes = b.types!;
-      if (aTypes.statics !== bTypes.statics) {
-        return bTypes.statics - aTypes.statics;
-      }
-      if (aTypes.dynamics !== bTypes.dynamics) {
-        return bTypes.dynamics - aTypes.dynamics;
-      }
-      if (aTypes.symbols !== bTypes.symbols) {
-        return bTypes.symbols - aTypes.symbols;
-      }
-      return 0;
-    });
+    states = states.filter(isEndpoint);
 
     if (states.length > 0) {
-      const state = states[0];
+      states.sort(sortEndpoint);
+      state = states[0];
       if (!state.charSpec.isSymbol) {
         interpretation.next(state.pattern!);
       }
@@ -406,6 +384,27 @@ export class SyntaxInterpreter {
 
     return result;
   }
+}
+
+function isEndpoint(a: State) {
+  return a.isEndpoint;
+}
+
+function sortEndpoint(a: State, b: State) {
+  // both a and b are endpoints
+  // compare them based on the number of static, then dynamic & symbol fragments
+  const aTypes = a.types!;
+  const bTypes = b.types!;
+  if (aTypes.statics !== bTypes.statics) {
+    return bTypes.statics - aTypes.statics;
+  }
+  if (aTypes.dynamics !== bTypes.dynamics) {
+    return bTypes.dynamics - aTypes.dynamics;
+  }
+  if (aTypes.symbols !== bTypes.symbols) {
+    return bTypes.symbols - aTypes.symbols;
+  }
+  return 0;
 }
 
 export class AttrSyntax {

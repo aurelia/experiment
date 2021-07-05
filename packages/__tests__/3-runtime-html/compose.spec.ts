@@ -11,6 +11,7 @@ import {
   AuCompose,
   INode,
   IRenderLocation,
+  DefinitionRenderer,
 } from '@aurelia/runtime-html';
 import {
   eachCartesianJoin,
@@ -70,7 +71,11 @@ describe('3-runtime-html/compose.spec.ts/au-render', function () {
     },
     {
       t: '4',
-      createSubject: ctx => getRenderContext({ name: 'cmp', template: `<template>Hello!</template>` }, ctx.container).getViewFactory(),
+      // createSubject: ctx => getRenderContext({ name: 'cmp', template: `<template>Hello!</template>` }, ctx.container).getViewFactory(),
+      createSubject: ctx => ctx.container.get(DefinitionRenderer).getViewFactory(
+        { name: 'cmp', template: `<template>Hello!</template>` },
+        ctx.container
+      ),
       expectedText: 'Hello!'
     },
     // {
@@ -128,7 +133,7 @@ describe('3-runtime-html/compose.spec.ts/au-render', function () {
     const { createSubject, expectedText } = subjectSpec;
     const { template } = templateSpec;
 
-    it(`verify au-compose behavior - subjectSpec ${subjectSpec.t}, templateSpec ${templateSpec.t}`, async function () {
+    it(`verify au-render behavior - subjectSpec ${subjectSpec.t}, templateSpec ${templateSpec.t}`, async function () {
       const ctx = createFixture();
       const subject = createSubject(ctx);
       const { au, host } = ctx;

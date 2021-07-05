@@ -5,7 +5,7 @@ import { convertToRenderLocation, INode, IRenderLocation, isRenderLocation } fro
 import { IPlatform } from '../../platform.js';
 import { HydrateElementInstruction, IInstruction } from '../../renderer.js';
 import { Controller, IController, ICustomElementController, IHydratedController, ISyntheticView } from '../../templating/controller.js';
-import { getRenderContext } from '../../templating/render-context.js';
+import { IDefinitionRenderer } from '../../templating/def-renderer.js';
 import { CustomElement, customElement, CustomElementDefinition } from '../custom-element.js';
 
 // plan:
@@ -41,7 +41,7 @@ export class AuCompose {
 
   /** @internal */
   protected static get inject() {
-    return [IContainer, IController, INode, IPlatform, IInstruction, transient(CompositionContextFactory)];
+    return [IContainer, IController, INode, IPlatform, IInstruction, transient(CompositionContextFactory), IDefinitionRenderer];
   }
 
   /* determine what template used to compose the component */
@@ -88,6 +88,7 @@ export class AuCompose {
     //        for later enhancement related to <au-slot/> + compose
     private readonly instruction: HydrateElementInstruction,
     private readonly contextFactory: CompositionContextFactory,
+    private readonly defRenderer: IDefinitionRenderer,
   ) {
     this.loc = instruction.containerless ? convertToRenderLocation(this.host) : void 0;
   }
@@ -231,11 +232,12 @@ export class AuCompose {
           name: CustomElement.generateName(),
           template: view,
         });
-        const renderContext = getRenderContext(targetDef, childContainer);
-        const viewFactory = renderContext.getViewFactory();
+        // const renderContext = getRenderContext(targetDef, childContainer);
+        // const viewFactory = renderContext.getViewFactory();
+        const viewFactory = this.defRenderer.getViewFactory(targetDef, childContainer);
         const controller = Controller.forSyntheticView(
           contextFactory.isFirst(context) ? $controller.root : null,
-          renderContext,
+          null!,
           viewFactory,
           LifecycleFlags.fromBind,
           $controller

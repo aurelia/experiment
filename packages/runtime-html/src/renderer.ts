@@ -1,4 +1,4 @@
-import { Metadata, Registration, DI, emptyArray, InstanceProvider } from '@aurelia/kernel';
+import { Metadata, Registration, DI, emptyArray, InstanceProvider, IResolver } from '@aurelia/kernel';
 import {
   BindingMode,
   BindingType,
@@ -17,11 +17,10 @@ import { RefBinding } from './binding/ref-binding.js';
 import { Listener } from './binding/listener.js';
 import { IEventDelegator } from './observation/event-delegator.js';
 import { CustomElement, CustomElementDefinition } from './resources/custom-element.js';
-import { getRenderContext } from './templating/render-context.js';
-import { AuSlotsInfo, IProjections } from './resources/custom-elements/au-slot.js';
+import { AuSlotsInfo, IAuSlotsInfo, IProjections } from './resources/custom-elements/au-slot.js';
 import { CustomAttribute } from './resources/custom-attribute.js';
-import { convertToRenderLocation, setRef } from './dom.js';
-import { Controller } from './templating/controller.js';
+import { convertToRenderLocation, IRenderLocation, setRef } from './dom.js';
+import { Controller, ICustomAttributeViewModel } from './templating/controller.js';
 import { IPlatform } from './platform.js';
 
 import type { IServiceLocator, IContainer, Class, IRegistry } from '@aurelia/kernel';
@@ -35,10 +34,11 @@ import type {
   ForOfStatement,
   DelegationStrategy,
 } from '@aurelia/runtime';
-import type { IHydratableController, IController } from './templating/controller.js';
+import { IHydratableController, IController } from './templating/controller.js';
 import type { PartialCustomElementDefinition } from './resources/custom-element.js';
-import type { ICompiledRenderContext } from './templating/render-context.js';
-import type { INode } from './dom.js';
+import { INode } from './dom.js';
+import { IViewFactory } from './templating/view.js';
+import { IDefinitionRenderer } from './templating/def-renderer.js';
 
 export const enum InstructionType {
   hydrateElement = 'ra',
@@ -332,7 +332,6 @@ export interface IRenderer<
 > extends Partial<IInstructionTypeClassifier<TType>> {
   render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     /**
      * The controller that is current invoking this renderer
      */
@@ -423,7 +422,6 @@ function getRefTarget(refHost: INode, refTargetName: string): object {
 export class SetPropertyRenderer implements IRenderer {
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: IController,
     instruction: SetPropertyInstruction,
@@ -440,15 +438,17 @@ export class SetPropertyRenderer implements IRenderer {
 @renderer(InstructionType.hydrateElement)
 /** @internal */
 export class CustomElementRenderer implements IRenderer {
+  public static get inject(): unknown[] { return [IDefinitionRenderer]; }
+  public constructor(private readonly defRenderer: IDefinitionRenderer) {}
+
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: HTMLElement,
     instruction: HydrateElementInstruction,
   ): void {
     const projections = instruction.projections;
-    const container = context.createElementContainer(
+    const container = this.createElementContainer(
       /* parentController */renderingController,
       /* host             */target,
       /* instruction      */instruction,
@@ -456,7 +456,10 @@ export class CustomElementRenderer implements IRenderer {
       /* location         */target,
       /* auSlotsInfo      */new AuSlotsInfo(projections == null ? emptyArray : Object.keys(projections)),
     );
-    const definition = context.container.find(CustomElement, instruction.res) as CustomElementDefinition;
+    const definition = renderingController.container.find(CustomElement, instruction.res)!;
+    if (definition == null) {
+      debugger
+    }
     const Ctor = definition.Type;
     const component = container.invoke(Ctor);
     const key = CustomElement.keyFrom(instruction.res);
@@ -475,23 +478,69 @@ export class CustomElementRenderer implements IRenderer {
     flags = childController.flags;
     setRef(target, key, childController);
 
-    context.renderChildren(
-      /* flags        */flags,
-      /* instructions */instruction.instructions,
-      /* controller   */renderingController,
-      /* target       */childController,
+    // now render bindable instructions
+    const renderers = this.defRenderer.getRenderers(renderingController.container);
+    const bindables = instruction.instructions;
+    const ii = bindables.length;
+    let i = 0;
+    let inst: IInstruction;
+    while (ii > i) {
+      inst = bindables[i];
+      renderers[inst.type].render(flags, renderingController, childController, inst);
+      ++i;
+    }
+
+    renderingController.addChild(childController);
+  }
+
+  public createElementContainer(
+    parentController: IController,
+    host: HTMLElement,
+    instruction: HydrateElementInstruction,
+    viewFactory?: IViewFactory,
+    location?: IRenderLocation,
+    auSlotsInfo?: IAuSlotsInfo,
+  ): IContainer {
+    const p = parentController.platform;
+    const container = parentController.container.createChild();
+    const nodeProvider = new InstanceProvider('ElementProvider', host);
+
+    // todo:
+    // both node provider and location provider may not be allowed to throw
+    // if there's no value associated, unlike InstanceProvider
+    // reason being some custom element can have `containerless` attribute on them
+    // causing the host to disappear, and replace by a location instead
+    container.registerResolver(INode, nodeProvider);
+    container.registerResolver(p.Node, nodeProvider);
+    container.registerResolver(p.Element, nodeProvider);
+    container.registerResolver(p.HTMLElement, nodeProvider);
+    container.registerResolver(IController, new InstanceProvider('IController', parentController));
+    container.registerResolver(IInstruction, new InstanceProvider('IInstruction', instruction));
+    container.registerResolver(IRenderLocation, location == null
+      ? noLocationProvider
+      : new InstanceProvider('IRenderLocation', location)
+    );
+    container.registerResolver(IViewFactory, viewFactory == null
+      ? noViewFactoryProvider
+      : new ViewFactoryProvider(viewFactory)
+    );
+    container.registerResolver(IAuSlotsInfo, auSlotsInfo == null
+      ? noAuSlotProvider
+      : new InstanceProvider('AuSlotInfo', auSlotsInfo)
     );
 
-    renderingController.addController(childController);
+    return container;
   }
 }
 
 @renderer(InstructionType.hydrateAttribute)
 /** @internal */
 export class CustomAttributeRenderer implements IRenderer {
+  public static get inject(): unknown[] { return [IDefinitionRenderer]; }
+  public constructor(private readonly defRenderer: IDefinitionRenderer) {}
+
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     /**
      * The cotroller that is currently invoking this renderer
      */
@@ -499,7 +548,7 @@ export class CustomAttributeRenderer implements IRenderer {
     target: HTMLElement,
     instruction: HydrateAttributeInstruction,
   ): void {
-    const component = context.invokeAttribute(
+    const component = this.invokeAttribute(
       /* parentController */renderingController,
       /* host             */target,
       /* instruction      */instruction,
@@ -508,7 +557,7 @@ export class CustomAttributeRenderer implements IRenderer {
     );
     const childController = Controller.forCustomAttribute(
       /* root       */renderingController.root,
-      /* context ct */context.container,
+      /* context ct */renderingController.container,
       /* viewModel  */component,
       /* host       */target,
       /* flags      */flags,
@@ -517,30 +566,87 @@ export class CustomAttributeRenderer implements IRenderer {
 
     setRef(target, key, childController);
 
-    context.renderChildren(
-      /* flags        */flags,
-      /* instructions */instruction.instructions,
-      /* controller   */renderingController,
-      /* target       */childController,
-    );
+    // now render bindable instructions
+    const renderers = this.defRenderer.getRenderers(renderingController.container);
+    const bindables = instruction.instructions;
+    const ii = bindables.length;
+    let i = 0;
+    let inst: IInstruction;
+    while (ii > i) {
+      inst = bindables[i];
+      renderers[inst.type].render(flags, renderingController, childController, inst);
+      ++i;
+    }
+    // context.renderChildren(
+    //   /* flags        */flags,
+    //   /* instructions */instruction.instructions,
+    //   /* controller   */renderingController,
+    //   /* target       */childController,
+    // );
 
-    renderingController.addController(childController);
+    renderingController.addChild(childController);
+  }
+
+  private ivkSymMap = new WeakMap<IContainer, IContainer>();
+  public invokeAttribute(
+    renderingController: IController,
+    host: HTMLElement,
+    instruction: HydrateAttributeInstruction | HydrateTemplateController,
+    viewFactory?: IViewFactory,
+    location?: IRenderLocation,
+    auSlotsInfo?: IAuSlotsInfo
+  ): ICustomAttributeViewModel {
+    const p = renderingController.platform;
+    const container = renderingController.container;
+    const definition = container.find(CustomAttribute, instruction.res);
+    const Ctor = definition!.Type;
+    let invoker = this.ivkSymMap.get(container);
+    if (invoker == null) {
+      this.ivkSymMap.set(container, invoker = container.createChild());
+      invoker.registerResolver(INode, caElementProvider, true);
+      invoker.registerResolver(p.Node, caElementProvider);
+      invoker.registerResolver(p.Element, caElementProvider);
+      invoker.registerResolver(p.HTMLElement, caElementProvider);
+      invoker.registerResolver(IController, caParentControllerProvider, true);
+      invoker.registerResolver(IInstruction, caInstructionProvider, true);
+      invoker.registerResolver(IRenderLocation, caRenderLocationProvider, true);
+      invoker.registerResolver(IViewFactory, caFactoryProvider, true);
+      invoker.registerResolver(IAuSlotsInfo, caAuSlotsInfoProvider, true);
+    }
+
+    caElementProvider.prepare(host);
+    caParentControllerProvider.prepare(renderingController);
+    caInstructionProvider.prepare(instruction);
+    // null or undefined wouldn't matter
+    // as it can just throw if trying to inject something non-existant
+    caFactoryProvider.prepare(viewFactory!);
+    caRenderLocationProvider.prepare(location!);
+    caAuSlotsInfoProvider.prepare(auSlotsInfo!);
+
+    const instance = invoker!.invoke(Ctor);
+    // invoker.dispose();
+    dispseAllProviders();
+
+    return instance;
   }
 }
 
 @renderer(InstructionType.hydrateTemplateController)
 /** @internal */
 export class TemplateControllerRenderer implements IRenderer {
+  public static get inject(): unknown[] { return [IDefinitionRenderer]; }
+  public constructor(private readonly defRenderer: IDefinitionRenderer) {}
+
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: HTMLElement,
     instruction: HydrateTemplateController,
   ): void {
-    const viewFactory = getRenderContext(instruction.def, context.container).getViewFactory();
+    const viewFactory = this.defRenderer.getViewFactory(instruction.def, renderingController.container);
+    // const viewFactory = getRenderContext(instruction.def, renderingController.container).getViewFactory();
     const renderLocation = convertToRenderLocation(target);
-    const component = context.invokeAttribute(
+    const component = this.invokeAttribute(
       /* parentController */renderingController,
       /* host             */target,
       /* instruction      */instruction,
@@ -549,7 +655,7 @@ export class TemplateControllerRenderer implements IRenderer {
     );
     const childController = Controller.forCustomAttribute(
       /* root         */renderingController.root,
-      /* container ct */context.container,
+      /* container ct */renderingController.container,
       /* viewModel    */component,
       /* host         */target,
       /* flags        */flags,
@@ -558,16 +664,70 @@ export class TemplateControllerRenderer implements IRenderer {
 
     setRef(renderLocation, key, childController);
 
-    component.link?.(flags, context, renderingController, childController, target, instruction);
+    component.link?.(flags, renderingController, childController, target, instruction);
 
-    context.renderChildren(
-      /* flags        */flags,
-      /* instructions */instruction.instructions,
-      /* controller   */renderingController,
-      /* target       */childController,
-    );
+    // now render bindable instructions
+    const renderers = this.defRenderer.getRenderers(renderingController.container);
+    const bindables = instruction.instructions;
+    const ii = bindables.length;
+    let i = 0;
+    let inst: IInstruction;
+    while (ii > i) {
+      inst = bindables[i];
+      renderers[inst.type].render(flags, renderingController, childController, inst);
+      ++i;
+    }
+    // context.renderChildren(
+    //   /* flags        */flags,
+    //   /* instructions */instruction.instructions,
+    //   /* controller   */renderingController,
+    //   /* target       */childController,
+    // );
 
-    renderingController.addController(childController);
+    renderingController.addChild(childController);
+  }
+
+  private ivkSymMap = new WeakMap<IContainer, IContainer>();
+  public invokeAttribute(
+    renderingController: IController,
+    host: HTMLElement,
+    instruction: HydrateAttributeInstruction | HydrateTemplateController,
+    viewFactory?: IViewFactory,
+    location?: IRenderLocation,
+    auSlotsInfo?: IAuSlotsInfo
+  ): ICustomAttributeViewModel {
+    const p = renderingController.platform;
+    const container = renderingController.container;
+    const definition = container.find(CustomAttribute, instruction.res);
+    const Ctor = definition!.Type;
+    let invoker = this.ivkSymMap.get(container);
+    if (invoker == null) {
+      this.ivkSymMap.set(container, invoker = container.createChild());
+      invoker.registerResolver(INode, caElementProvider, true);
+      invoker.registerResolver(p.Node, caElementProvider);
+      invoker.registerResolver(p.Element, caElementProvider);
+      invoker.registerResolver(p.HTMLElement, caElementProvider);
+      invoker.registerResolver(IController, caParentControllerProvider, true);
+      invoker.registerResolver(IInstruction, caInstructionProvider, true);
+      invoker.registerResolver(IRenderLocation, caRenderLocationProvider, true);
+      invoker.registerResolver(IViewFactory, caFactoryProvider, true);
+      invoker.registerResolver(IAuSlotsInfo, caAuSlotsInfoProvider, true);
+    }
+
+    caElementProvider.prepare(host);
+    caParentControllerProvider.prepare(renderingController);
+    caInstructionProvider.prepare(instruction);
+    // null or undefined wouldn't matter
+    // as it can just throw if trying to inject something non-existant
+    caFactoryProvider.prepare(viewFactory!);
+    caRenderLocationProvider.prepare(location!);
+    caAuSlotsInfoProvider.prepare(auSlotsInfo!);
+
+    const instance = invoker!.invoke(Ctor);
+    // invoker.dispose();
+    dispseAllProviders();
+
+    return instance;
   }
 }
 
@@ -581,7 +741,6 @@ export class LetElementRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     rendererController: IHydratableController,
     target: Node & ChildNode,
     instruction: HydrateLetElementInstruction,
@@ -616,7 +775,6 @@ export class CallBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     rendererController: IHydratableController,
     target: IController,
     instruction: CallBindingInstruction,
@@ -640,7 +798,6 @@ export class RefBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     rendererController: IHydratableController,
     target: INode,
     instruction: RefBindingInstruction,
@@ -666,7 +823,6 @@ export class InterpolationBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: IController,
     instruction: InterpolationInstruction,
@@ -708,16 +864,15 @@ export class PropertyBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: IController,
     instruction: PropertyBindingInstruction,
   ): void {
     const expr = ensureExpression(this.parser, instruction.from, BindingType.IsPropertyCommand | instruction.mode);
     const binding = applyBindingBehavior(
-      new PropertyBinding(expr, getTarget(target), instruction.to, instruction.mode, this.observerLocator, context.container, this.platform.domWriteQueue),
+      new PropertyBinding(expr, getTarget(target), instruction.to, instruction.mode, this.observerLocator, renderingController.container, this.platform.domWriteQueue),
       expr,
-      context.container,
+      renderingController.container,
     );
     renderingController.addBinding(binding);
   }
@@ -734,7 +889,6 @@ export class IteratorBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: IController,
     instruction: IteratorBindingInstruction,
@@ -783,7 +937,6 @@ export class TextBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: ChildNode,
     instruction: TextBindingInstruction,
@@ -842,7 +995,6 @@ export class ListenerBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: HTMLElement,
     instruction: ListenerBindingInstruction,
@@ -862,7 +1014,6 @@ export class ListenerBindingRenderer implements IRenderer {
 export class SetAttributeRenderer implements IRenderer {
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: HTMLElement,
     instruction: SetAttributeInstruction,
@@ -875,7 +1026,6 @@ export class SetAttributeRenderer implements IRenderer {
 export class SetClassAttributeRenderer implements IRenderer {
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: HTMLElement,
     instruction: SetClassAttributeInstruction,
@@ -888,7 +1038,6 @@ export class SetClassAttributeRenderer implements IRenderer {
 export class SetStyleAttributeRenderer implements IRenderer {
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: HTMLElement,
     instruction: SetStyleAttributeInstruction,
@@ -908,7 +1057,6 @@ export class StylePropertyBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: HTMLElement,
     instruction: StylePropertyBindingInstruction,
@@ -933,7 +1081,6 @@ export class AttributeBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     renderingController: IHydratableController,
     target: HTMLElement,
     instruction: AttributeBindingInstruction,
@@ -971,3 +1118,61 @@ function addClasses(classList: DOMTokenList, className: string): void {
     }
   }
 }
+
+class ViewFactoryProvider implements IResolver {
+  private factory: IViewFactory | null = null;
+
+  public constructor(
+    /**
+     * The factory instance that this provider will resolves to,
+     * until explicitly overridden by prepare call
+     */
+    factory?: IViewFactory | null
+  ) {
+    if (factory !== void 0) {
+      this.factory = factory;
+    }
+  }
+
+  public prepare(factory: IViewFactory): void {
+    this.factory = factory;
+  }
+  public get $isResolver(): true { return true; }
+
+  public resolve(): IViewFactory {
+    const factory = this.factory;
+    if (factory === null) {
+      throw new Error('Cannot resolve ViewFactory before the provider was prepared.');
+    }
+    if (typeof factory.name !== 'string' || factory.name.length === 0) {
+      throw new Error('Cannot resolve ViewFactory without a (valid) name.');
+    }
+    return factory;
+  }
+
+  public dispose(): void {
+    this.factory = null;
+  }
+}
+
+const noLocationProvider = new InstanceProvider<IRenderLocation>('IRenderLocation');
+const noViewFactoryProvider = new ViewFactoryProvider();
+const noAuSlotProvider = new InstanceProvider<AuSlotsInfo>('AuSlotsInfo');
+
+const caElementProvider = new InstanceProvider<INode>('ElementResolver');
+const caFactoryProvider = new ViewFactoryProvider();
+const caParentControllerProvider = new InstanceProvider('IController');
+const caInstructionProvider = new InstanceProvider<Instruction>('IInstruction');
+const caRenderLocationProvider = new InstanceProvider<IRenderLocation>('IRenderLocation');
+const caAuSlotsInfoProvider = new InstanceProvider<IAuSlotsInfo>('IAuSlotsInfo');
+
+const dispseAllProviders = () => {
+  caElementProvider.dispose();
+  caParentControllerProvider.dispose();
+  caInstructionProvider.dispose();
+  // null or undefined wouldn't matter
+  // as it can just throw if trying to inject something non-existant
+  caFactoryProvider.dispose();
+  caRenderLocationProvider.dispose();
+  caAuSlotsInfoProvider.dispose();
+};

@@ -560,7 +560,7 @@ function createConfiguredNode(
       }));
 
       const router = ctx.container.get(IRouter);
-      const childCtx = router.getRouteContext(vpa, ced, vpa.hostController.context);
+      const childCtx = router.getRouteContext(vpa, ced, vpa.hostController.container);
 
       childCtx.node = RouteNode.create({
         path: rr.route.endpoint.route.path,
@@ -704,7 +704,7 @@ function createDirectNode(
   }));
 
   const router = ctx.container.get(IRouter);
-  const childCtx = router.getRouteContext(vpa, ced, vpa.hostController.context);
+  const childCtx = router.getRouteContext(vpa, ced, vpa.hostController.container);
 
   // TODO(fkleuver): process redirects in direct routing (?)
   const rd = RouteDefinition.resolve(ced);

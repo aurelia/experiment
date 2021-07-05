@@ -28,6 +28,11 @@ describe('3-runtime-html/attr-syntax-extension.spec.ts', function () {
               this.select.addEventListener('change', () => {
                 this.dispatchEvent(new CustomEvent('my-el-change'));
               });
+              if (this.hasOwnProperty('value')) {
+                const v = this.value;
+                delete this.value;
+                this.value = v;
+              }
             }
 
             public get value() {
@@ -57,6 +62,7 @@ describe('3-runtime-html/attr-syntax-extension.spec.ts', function () {
     assert.strictEqual(selectEl.options[0].selected, true);
 
     selectEl.options[1].selected = true;
+    debugger
     selectEl.dispatchEvent(new Event('change'));
 
     assert.strictEqual(component.option, '2');

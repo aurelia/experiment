@@ -3,11 +3,11 @@ import { BindingMode, LifecycleFlags } from '@aurelia/runtime';
 import { createElement, RenderPlan } from '../../create-element.js';
 import { HydrateElementInstruction, IInstruction, Instruction } from '../../renderer.js';
 import { IPlatform } from '../../platform.js';
-import { getRenderContext } from '../../templating/render-context.js';
 import { IViewFactory } from '../../templating/view.js';
 import { customElement, CustomElementDefinition } from '../custom-element.js';
 import { bindable } from '../../bindable.js';
 import type { ControllerVisitor, ICustomElementController, ICustomElementViewModel, IHydratedController, IHydratedParentController, ISyntheticView } from '../../templating/controller.js';
+import { IDefinitionRenderer } from '../../templating/def-renderer.js';
 
 export type Subject = IViewFactory | ISyntheticView | RenderPlan | Constructable | CustomElementDefinition;
 export type MaybeSubjectPromise = Subject | Promise<Subject> | undefined;
@@ -26,6 +26,7 @@ function toLookup(
 
 @customElement({ name: 'au-render', template: null, containerless: true })
 export class AuRender implements ICustomElementViewModel {
+  public static get inject(): unknown[] { return [IPlatform, IInstruction, IDefinitionRenderer]; }
   public readonly id: number = nextId('au$component');
 
   @bindable public subject?: MaybeSubjectPromise = void 0;
@@ -40,8 +41,9 @@ export class AuRender implements ICustomElementViewModel {
   public readonly $controller!: ICustomElementController<this>; // This is set by the controller after this instance is constructed
 
   public constructor(
-    @IPlatform private readonly p: IPlatform,
-    @IInstruction instruction: HydrateElementInstruction,
+    private readonly p: IPlatform,
+    instruction: HydrateElementInstruction,
+    private readonly defRenderer: IDefinitionRenderer,
   ) {
     this.properties = instruction.instructions.reduce(toLookup, {});
   }
@@ -159,7 +161,7 @@ export class AuRender implements ICustomElementViewModel {
     }
 
     if ('createView' in subject) { // RenderPlan
-      return subject.createView(this.$controller.context!.container);
+      return subject.createView(this.$controller.container);
     }
 
     if ('create' in subject) { // IViewFactory
@@ -168,7 +170,8 @@ export class AuRender implements ICustomElementViewModel {
 
     if ('template' in subject) { // Raw Template Definition
       const definition = CustomElementDefinition.getOrCreate(subject);
-      return getRenderContext(definition, this.$controller.context!.container).getViewFactory().create(flags);
+      return this.defRenderer.getViewFactory(definition, this.$controller.container).create(flags);
+      // return getRenderContext(definition, this.$controller.context!.container).getViewFactory().create(flags);
     }
 
     // Constructable (Custom Element Constructor)
@@ -177,7 +180,7 @@ export class AuRender implements ICustomElementViewModel {
       subject,
       this.properties,
       this.$controller.host.childNodes,
-    ).createView(this.$controller.context!.container);
+    ).createView(this.$controller.container);
   }
 
   public dispose(): void {

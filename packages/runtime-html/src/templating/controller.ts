@@ -21,13 +21,13 @@ import { BindableObserver } from '../observation/bindable-observer.js';
 import { convertToRenderLocation, setRef } from '../dom.js';
 import { CustomElementDefinition, CustomElement } from '../resources/custom-element.js';
 import { CustomAttributeDefinition, CustomAttribute } from '../resources/custom-attribute.js';
-import { IRenderContext, getRenderContext, RenderContext, ICompiledRenderContext } from './render-context.js';
 import { ChildrenDefinition, ChildrenObserver } from './children.js';
 import { IAppRoot } from '../app-root.js';
 import { IPlatform } from '../platform.js';
 import { IShadowDOMGlobalStyles, IShadowDOMStyles } from './styles.js';
 import { ComputedWatcher, ExpressionWatcher } from './watchers.js';
 import { LifecycleHooks } from './lifecycle-hooks.js';
+import { IDefinitionRenderer,  } from './def-renderer.js';
 
 import type {
   IContainer,
@@ -40,16 +40,14 @@ import type {
 import type {
   IBinding,
   IObservable,
-  AccessorOrObserver,
   IsBindingBehavior,
 } from '@aurelia/runtime';
 import type { IProjections } from '../resources/custom-elements/au-slot.js';
 import type { BindableDefinition } from '../bindable.js';
-import type { PropertyBinding } from '../binding/property-binding.js';
 import type { LifecycleHooksLookup } from './lifecycle-hooks.js';
 import type { INode, INodeSequence, IRenderLocation } from '../dom.js';
 import type { IViewFactory } from './view.js';
-import type { Instruction } from '../renderer.js';
+import type { IInstruction, Instruction } from '../renderer.js';
 import type { IWatchDefinition, IWatcherCallback } from '../watch.js';
 import type { PartialCustomElementDefinition } from '../resources/custom-element.js';
 
@@ -91,7 +89,7 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
   public mountTarget: MountTarget = MountTarget.none;
   public shadowRoot: ShadowRoot | null = null;
   public nodes: INodeSequence | null = null;
-  public context: RenderContext | null = null;
+  // public context: RenderContext | null = null;
   public location: IRenderLocation | null = null;
   public lifecycleHooks: LifecycleHooksLookup | null = null;
 
@@ -99,6 +97,7 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
   public get isActive(): boolean {
     return (this.state & (State.activating | State.activated)) > 0 && (this.state & State.deactivating) === 0;
   }
+  private compiledDef: CustomElementDefinition | null = null;
 
   private get name(): string {
     if (this.parent === null) {
@@ -226,7 +225,7 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
     controllerLookup.set(viewModel, controller as Controller);
 
     if (hydrate) {
-      controller.hydrateCustomElement(hydrationInst);
+      controller.hydrateCustomElement();
     }
 
     return controller as ICustomElementController<C>;
@@ -267,16 +266,15 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
 
   public static forSyntheticView(
     root: IAppRoot | null,
-    context: IRenderContext,
+    context: unknown,
     viewFactory: IViewFactory,
     flags: LifecycleFlags = LifecycleFlags.none,
     parentController: ISyntheticView | ICustomElementController | ICustomAttributeController | undefined = void 0,
   ): ISyntheticView {
     const controller = new Controller(
       /* root           */root,
-      // todo: context container
-      /* container      */context.container,
-      /* container      */context.container,
+      /* ctx container  */viewFactory.container,
+      /* container      */viewFactory.container,
       /* vmKind         */ViewModelKind.synthetic,
       /* flags          */flags,
       /* definition     */null,
@@ -286,15 +284,48 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
     );
     controller.parent = parentController ?? null;
 
-    controller.hydrateSynthetic(context);
+    // controller.hydrateSynthetic(context);
+    // controller.context = context as RenderContext;
+    // const compiledContext = context.compile(null);
+    // const compiledDefinition = compiledContext.compiledDefinition;
+    // const compiledDefinition = compiledContext.compiledDefinition;
 
-    return controller as unknown as ISyntheticView;
+    // this.isStrictBinding = compiledDefinition.isStrictBinding;
+    const defRenderer = controller.container.get(IDefinitionRenderer);
+    // controller.nodes = defRenderer.render(controller as ISyntheticView, viewFactory.def);
+    
+    const rs = defRenderer.getRenderers(controller.container);
+    const nodes = controller.nodes = defRenderer.createNodes(viewFactory.def);
+    const targets = nodes.findTargets();
+    const instructions = viewFactory.def.instructions;
+    if (targets.length !== instructions.length) {
+      throw new Error(`The compiled template is not aligned with the render instructions. There are ${targets.length} targets and ${instructions.length} instructions.`);
+    }
+    let i = 0;
+    let ii = targets.length;
+    let j = 0;
+    let jj = 0;
+    let row: readonly IInstruction[];
+    let instruction: IInstruction;
+    let target: unknown;
+    while (ii > i) {
+      target = targets[i];
+      row = instructions[i];
+      j = 0;
+      jj = row.length;
+      while (jj > j) {
+        instruction = row[j];
+        rs[instruction.type].render(LifecycleFlags.none, controller as ISyntheticView, target, instruction);
+        ++j;
+      }
+      ++i;
+    }
+
+    return controller as ISyntheticView;
   }
 
   /** @internal */
-  public hydrateCustomElement(
-    hydrationInst: IControllerElementHydrationInstruction | null
-  ): void {
+  public hydrateCustomElement(): void {
     this.logger = this.container.get(ILogger).root;
     this.debug = this.logger.config.level <= LogLevel.debug;
     if (this.debug) {
@@ -326,7 +357,8 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
       }
     }
 
-    this.context = getRenderContext(definition, container) as RenderContext;
+    this.compiledDef = this.container.get(IDefinitionRenderer).compile(this.definition!, this.container);
+    // this.context = getRenderContext(definition, container) as RenderContext;
     this.lifecycleHooks = LifecycleHooks.resolve(container);
     // Support Recursive Components by adding self to own context
     definition.register(container);
@@ -346,25 +378,26 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
     // - Controller.compileChildren
     // This keeps hydration synchronous while still allowing the composition root compile hooks to do async work.
     if ((this.root?.controller as this | undefined) !== this) {
-      this.hydrate(hydrationInst);
+      this.hydrate();
       this.hydrateChildren();
     }
   }
 
   /** @internal */
-  public hydrate(hydrationInst: IControllerElementHydrationInstruction | null): void {
+  public hydrate(): void {
     if (this.hooks.hasHydrating) {
       if (this.debug) { this.logger!.trace(`invoking hydrating() hook`); }
       (this.viewModel as BindingContext<C>).hydrating(this as ICustomElementController);
     }
 
-    const compiledContext = this.context!.compile(hydrationInst);
-    const { shadowOptions, isStrictBinding, hasSlots, containerless } = compiledContext.compiledDefinition;
+    // const compiledContext = this.context!.compile(hydrationInst);
+    // const { shadowOptions, isStrictBinding, hasSlots, containerless } = compiledContext.compiledDefinition;
+    const { shadowOptions, isStrictBinding, hasSlots, containerless } = this.compiledDef!;
 
     this.isStrictBinding = isStrictBinding;
 
     if ((this.hostController = CustomElement.for(this.host!, optionalCeFind) as Controller | null) !== null) {
-      this.host = this.platform.document.createElement(this.context!.definition.name);
+      this.host = this.platform.document.createElement(this.definition!.name);
     }
 
     setRef(this.host!, CustomElement.name, this as IHydratedController);
@@ -383,7 +416,7 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
     }
 
     (this.viewModel as Writable<C>).$controller = this;
-    this.nodes = compiledContext.createNodes();
+    this.nodes = this.container.get(IDefinitionRenderer).createNodes(this.compiledDef!);
 
     if (this.hooks.hasHydrated) {
       if (this.debug) { this.logger!.trace(`invoking hydrated() hook`); }
@@ -393,14 +426,52 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
 
   /** @internal */
   public hydrateChildren(): void {
-    const targets = this.nodes!.findTargets();
-    this.context!.render(
-      /* flags      */this.flags,
-      /* controller */this as ICustomElementController,
-      /* targets    */targets,
-      /* definition */this.context!.compiledDefinition,
-      /* host       */this.host,
-    );
+    const definition = this.compiledDef!;
+    const nodes = this.nodes!;
+    const targets = nodes.findTargets();
+    const instructions = definition.instructions;
+    const rs = this.container.get(IDefinitionRenderer).getRenderers(this.container);
+    if (targets.length !== instructions.length) {
+      throw new Error(`The compiled template is not aligned with the render instructions. There are ${targets.length} targets and ${definition.instructions.length} instructions.`);
+    }
+
+    let i = 0;
+    let ii = targets.length;
+    let j = 0;
+    let jj = 0;
+    let row: readonly IInstruction[];
+    let instruction: IInstruction;
+    let target: unknown;
+    while (ii > i) {
+      target = targets[i];
+      row = instructions[i];
+      j = 0;
+      jj = row.length;
+      while (jj > j) {
+        instruction = row[j];
+        rs[instruction.type].render(LifecycleFlags.none, this as ICustomElementController, target, instruction);
+        ++j;
+      }
+      ++i;
+    }
+    if (this.host != null) {
+      row = definition.surrogates;
+      j = 0;
+      jj = row.length;
+      while (jj > j) {
+        instruction = row[j];
+        rs[instruction.type].render(LifecycleFlags.none, this as ICustomElementController, this.host, instruction);
+        ++j;
+      }
+    }
+    // const targets = this.nodes!.findTargets();
+    // this.context!.render(
+    //   /* flags      */this.flags,
+    //   /* controller */this as ICustomElementController,
+    //   /* targets    */targets,
+    //   /* definition */this.context!.compiledDefinition,
+    //   /* host       */this.host,
+    // );
 
     if (this.hooks.hasCreated) {
       if (this.debug) { this.logger!.trace(`invoking created() hook`); }
@@ -426,23 +497,23 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
     }
   }
 
-  private hydrateSynthetic(context: IRenderContext): void {
-    this.context = context as RenderContext;
-    const compiledContext = context.compile(null);
-    const compiledDefinition = compiledContext.compiledDefinition;
+  // private hydrateSynthetic(context: IRenderContext): void {
+  //   this.context = context as RenderContext;
+  //   const compiledContext = context.compile(null);
+  //   const compiledDefinition = compiledContext.compiledDefinition;
 
-    this.isStrictBinding = compiledDefinition.isStrictBinding;
+  //   this.isStrictBinding = compiledDefinition.isStrictBinding;
 
-    const nodes = this.nodes = compiledContext.createNodes();
-    const targets = nodes.findTargets();
-    compiledContext.render(
-      /* flags      */this.flags,
-      /* controller */this,
-      /* targets    */targets,
-      /* definition */compiledDefinition,
-      /* host       */void 0,
-    );
-  }
+  //   const nodes = this.nodes = compiledContext.createNodes();
+  //   const targets = nodes.findTargets();
+  //   compiledContext.render(
+  //     /* flags      */this.flags,
+  //     /* controller */this,
+  //     /* targets    */targets,
+  //     /* definition */compiledDefinition,
+  //     /* host       */void 0,
+  //   );
+  // }
 
   private $initiator: IHydratedController = null!;
   private $flags: LifecycleFlags = LifecycleFlags.none;
@@ -612,7 +683,7 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
         this.nodes!.appendTo(this.host!, (this.definition as CustomElementDefinition | null)?.enhance);
         break;
       case MountTarget.shadowRoot: {
-        const container = this.context!.container;
+        const container = this.container;
         const styles = container.has(IShadowDOMStyles, false)
           ? container.get(IShadowDOMStyles)
           : container.get(IShadowDOMGlobalStyles);
@@ -951,7 +1022,7 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
     }
   }
 
-  public addController(controller: Controller): void {
+  public addChild(controller: Controller): void {
     if (this.children === null) {
       this.children = [controller];
     } else {
@@ -1034,7 +1105,7 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
     this.scope = null;
 
     this.nodes = null;
-    this.context = null;
+    // this.context = null;
     this.location = null;
 
     this.viewFactory = null;
@@ -1067,16 +1138,16 @@ export class Controller<C extends IViewModel = IViewModel> implements IControlle
     }
   }
 
-  public getTargetAccessor(propertyName: string): AccessorOrObserver | undefined {
-    const { bindings } = this;
-    if (bindings !== null) {
-      const binding = bindings.find(b => (b as PropertyBinding).targetProperty === propertyName) as PropertyBinding;
-      if (binding !== void 0) {
-        return binding.targetObserver;
-      }
-    }
-    return void 0;
-  }
+  // public getTargetAccessor(propertyName: string): AccessorOrObserver | undefined {
+  //   const { bindings } = this;
+  //   if (bindings !== null) {
+  //     const binding = bindings.find(b => (b as PropertyBinding).targetProperty === propertyName) as PropertyBinding;
+  //     if (binding !== void 0) {
+  //       return binding.targetObserver;
+  //     }
+  //   }
+  //   return void 0;
+  // }
 }
 
 function getLookup(instance: IIndexable): Record<string, BindableObserver | ChildrenObserver> {
@@ -1389,10 +1460,10 @@ export interface IHydratableController<C extends IViewModel = IViewModel> extend
   readonly bindings: readonly IBinding[] | null;
   readonly children: readonly IHydratedController[] | null;
 
-  getTargetAccessor(propertyName: string): AccessorOrObserver | null;
+  // getTargetAccessor(propertyName: string): AccessorOrObserver | null;
 
   addBinding(binding: IBinding): void;
-  addController(controller: IController): void;
+  addChild(controller: IController): void;
 }
 
 export const enum State {
@@ -1430,10 +1501,6 @@ export interface ISyntheticView extends IHydratableController {
   readonly definition: null;
   readonly viewModel: null;
   hostScope: Scope | null;
-  /**
-   * The compiled render context used for composing this view. Compilation was done by the `IViewFactory` prior to creating this view.
-   */
-  readonly context: ICompiledRenderContext;
   readonly isStrictBinding: boolean;
   /**
    * The physical DOM nodes that will be appended during the attach operation.
@@ -1569,12 +1636,7 @@ export interface IDryCustomElementController<C extends IViewModel = IViewModel> 
  *
  * It has the same properties as `IDryCustomElementController`, as well as a render context (hence 'contextual').
  */
-export interface IContextualCustomElementController<C extends IViewModel = IViewModel> extends IDryCustomElementController<C> {
-  /**
-   * The non-compiled render context used for compiling this component's `CustomElementDefinition`.
-   */
-  readonly context: IRenderContext;
-}
+export interface IContextualCustomElementController<C extends IViewModel = IViewModel> extends IDryCustomElementController<C> {}
 
 /**
  * A representation of `IController` specific to a custom element whose `hydrated` hook is about to be invoked (if present).
@@ -1582,10 +1644,6 @@ export interface IContextualCustomElementController<C extends IViewModel = IView
  * It has the same properties as `IContextualCustomElementController`, except the context is now compiled (hence 'compiled'), as well as the nodes, and projector.
  */
 export interface ICompiledCustomElementController<C extends IViewModel = IViewModel> extends IContextualCustomElementController<C> {
-  /**
-   * The compiled render context used for hydrating this controller.
-   */
-  readonly context: ICompiledRenderContext;
   readonly isStrictBinding: boolean;
   /**
    * The ShadowRoot, if this custom element uses ShadowDOM.
@@ -1721,7 +1779,6 @@ export interface ICustomAttributeViewModel extends IViewModel, IActivationHooks<
   readonly $controller?: ICustomAttributeController<this>;
   link?(
     flags: LifecycleFlags,
-    parentContext: ICompiledRenderContext,
     controller: IHydratableController,
     childController: ICustomAttributeController,
     target: INode,

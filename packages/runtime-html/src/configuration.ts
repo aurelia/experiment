@@ -78,6 +78,7 @@ import { AuSlot } from './resources/custom-elements/au-slot.js';
 import { SanitizeValueConverter } from './resources/value-converters/sanitize.js';
 import { ViewValueConverter } from './resources/value-converters/view.js';
 import { NodeObserverLocator } from './observation/observer-locator.js';
+import { DefinitionRenderer } from './templating/def-renderer.js';
 
 export const DebounceBindingBehaviorRegistration = DebounceBindingBehavior as unknown as IRegistry;
 export const OneTimeBindingBehaviorRegistration = OneTimeBindingBehavior as unknown as IRegistry;
@@ -294,6 +295,7 @@ export const DefaultRenderers = [
   SetStyleAttributeRendererRegistration,
   StylePropertyBindingRendererRegistration,
   TextBindingRendererRegistration,
+  DefinitionRenderer,
 ];
 
 /**

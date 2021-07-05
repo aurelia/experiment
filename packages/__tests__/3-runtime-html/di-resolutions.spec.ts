@@ -78,7 +78,7 @@ describe('3-runtime-html/di-resolutions.spec.ts', function () {
       await startPromise;
 
       // assert
-      const container = component.$controller!.context.container;
+      const container = component.$controller.container;
       assert.strictEqual(container.getResolver(IListboxContext, false), null);
       assert.strictEqual(container.has(IListboxContext, false), true);
       assert.strictEqual(container.get(IListboxContext), component.listbox.context);

@@ -557,6 +557,11 @@ export {
   ChildrenObserver,
 } from './templating/children.js';
 
+export {
+  IDefinitionRenderer,
+  DefinitionRenderer,
+} from './templating/def-renderer.js';
+
 // These exports are temporary until we have a proper way to unit test them
 export {
   Controller,
@@ -597,7 +602,6 @@ export {
   getRenderContext,
   isRenderContext,
   IRenderContext,
-  ICompiledRenderContext,
 } from './templating/render-context.js';
 export {
   ViewFactory,

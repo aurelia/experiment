@@ -17,7 +17,6 @@ import {
   AnyBindingExpression,
   BindingType,
   IBinding,
-  ICompiledRenderContext,
   IExpressionParser,
   IRenderer,
   IObserverLocator,
@@ -139,7 +138,6 @@ describe('TranslationBindingRenderer', function () {
     const callBindingInstruction: CallBindingInstruction = { from } as unknown as CallBindingInstruction;
     sut.render(
       LifecycleFlags.none,
-      { container } as unknown as ICompiledRenderContext,
       controller,
       PLATFORM.document.createElement('span'),
       callBindingInstruction,
@@ -160,7 +158,6 @@ describe('TranslationBindingRenderer', function () {
     const callBindingInstruction: CallBindingInstruction = { from } as unknown as CallBindingInstruction;
     sut.render(
       LifecycleFlags.none,
-      { container } as unknown as ICompiledRenderContext,
       controller,
       targetElement,
       callBindingInstruction,
@@ -284,7 +281,6 @@ describe('TranslationBindBindingRenderer', function () {
     const callBindingInstruction: CallBindingInstruction = { from, to: '.bind' } as unknown as CallBindingInstruction;
     sut.render(
       LifecycleFlags.none,
-      { container } as unknown as ICompiledRenderContext,
       controller,
       PLATFORM.document.createElement('span'),
       callBindingInstruction,
@@ -303,7 +299,6 @@ describe('TranslationBindBindingRenderer', function () {
     const callBindingInstruction: CallBindingInstruction = { from, to: '.bind' } as unknown as CallBindingInstruction;
     sut.render(
       LifecycleFlags.none,
-      { container } as unknown as ICompiledRenderContext,
       controller,
       PLATFORM.document.createElement('span'),
       callBindingInstruction,
@@ -324,7 +319,6 @@ describe('TranslationBindBindingRenderer', function () {
     const callBindingInstruction: CallBindingInstruction = { from, to: '.bind' } as unknown as CallBindingInstruction;
     sut.render(
       LifecycleFlags.none,
-      { container } as unknown as ICompiledRenderContext,
       controller,
       targetElement,
       callBindingInstruction,

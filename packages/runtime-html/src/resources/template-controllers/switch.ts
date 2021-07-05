@@ -21,7 +21,6 @@ import { IViewFactory } from '../../templating/view.js';
 import { bindable } from '../../bindable.js';
 
 import type { Controller, ICustomAttributeController, ICustomAttributeViewModel, IHydratedController, IHydratedParentController, IHydratableController, ISyntheticView, ControllerVisitor } from '../../templating/controller.js';
-import type { ICompiledRenderContext } from '../../templating/render-context.js';
 import type { INode } from '../../dom.js';
 import type { Instruction } from '../../renderer.js';
 
@@ -51,7 +50,6 @@ export class Switch implements ICustomAttributeViewModel {
 
   public link(
     flags: LifecycleFlags,
-    _parentContext: ICompiledRenderContext,
     _controller: IHydratableController,
     _childController: ICustomAttributeController,
     _target: INode,
@@ -276,7 +274,6 @@ export class Case implements ICustomAttributeViewModel {
 
   public link(
     flags: LifecycleFlags,
-    parentContext: ICompiledRenderContext,
     controller: IHydratableController,
     _childController: ICustomAttributeController,
     _target: INode,

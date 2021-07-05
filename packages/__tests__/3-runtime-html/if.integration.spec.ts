@@ -17,6 +17,7 @@ import {
   Interpolation,
   IWorkTracker,
   INodeObserverLocatorRegistration,
+  DefinitionRenderer,
 } from '@aurelia/runtime-html';
 import {
   eachCartesianJoin,
@@ -123,7 +124,38 @@ describe(`If/Else`, function () {
         elseLoc.$start = PLATFORM.document.createComment('au-start');
         host.append(ifLoc.$start, ifLoc, elseLoc.$start, elseLoc);
 
-        const ifContext = getRenderContext(
+        // const ifContext = getRenderContext(
+        //   CustomElementDefinition.create({
+        //     name: void 0,
+        //     template: textTemplate.content.cloneNode(true),
+        //     instructions: [
+        //       [
+        //         new TextBindingInstruction(new Interpolation(['', ''], [new AccessScopeExpression(ifPropName)]), false),
+        //       ],
+        //     ],
+        //     needsCompile: false,
+        //   }),
+        //   container,
+        // );
+        // const elseContext = getRenderContext(
+        //   CustomElementDefinition.create({
+        //     name: void 0,
+        //     template: textTemplate.content.cloneNode(true),
+        //     instructions: [
+        //       [
+        //         new TextBindingInstruction(new Interpolation(['', ''], [new AccessScopeExpression(elsePropName)]), false),
+        //       ],
+        //     ],
+        //     needsCompile: false,
+        //   }),
+        //   container,
+        // );
+
+        const work = container.get(IWorkTracker);
+        // const ifFactory = new ViewFactory('if-view', ifContext);
+        // const elseFactory = new ViewFactory('else-view', elseContext);
+        debugger;
+        const ifFactory = new DefinitionRenderer(PLATFORM).getViewFactory(
           CustomElementDefinition.create({
             name: void 0,
             template: textTemplate.content.cloneNode(true),
@@ -136,7 +168,7 @@ describe(`If/Else`, function () {
           }),
           container,
         );
-        const elseContext = getRenderContext(
+        const elseFactory = new DefinitionRenderer(PLATFORM).getViewFactory(
           CustomElementDefinition.create({
             name: void 0,
             template: textTemplate.content.cloneNode(true),
@@ -149,14 +181,10 @@ describe(`If/Else`, function () {
           }),
           container,
         );
-
-        const work = container.get(IWorkTracker);
-        const ifFactory = new ViewFactory('if-view', ifContext);
-        const elseFactory = new ViewFactory('else-view', elseContext);
         const sut = new If(ifFactory, ifLoc, work);
         const elseSut = new Else(elseFactory);
         const ifController = (sut as Writable<If>).$controller = Controller.forCustomAttribute(null, container, sut, (void 0)!);
-        elseSut.link(LifecycleFlags.none, void 0!, { children: [ifController] } as unknown as IHydratableController, void 0!, void 0!, void 0!);
+        elseSut.link(LifecycleFlags.none, { children: [ifController] } as unknown as IHydratableController, void 0!, void 0!, void 0!);
 
         const firstBindInitialNodesText: string = value1 ? ifText : elseText;
         const firstBindFinalNodesText = firstBindInitialNodesText;

@@ -550,7 +550,6 @@ interface ICustomElementViewModel {
 interface ICustomAttributeViewModel {
   link(
     flags: LifecycleFlags,
-    parentContext: ICompiledRenderContext,
     controller: IHydratableController,
     childController: ICustomAttributeController,
     target: INode,

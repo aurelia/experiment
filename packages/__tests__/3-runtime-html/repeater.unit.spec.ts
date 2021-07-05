@@ -11,6 +11,8 @@ import {
   Controller,
   CustomElementDefinition,
   getRenderContext,
+  IDefinitionRenderer,
+  DefinitionRenderer,
   IHydratableController,
   IRenderLocation,
   PropertyBindingRendererRegistration,
@@ -546,7 +548,22 @@ describe(`Repeat`, function () {
         loc.$start = PLATFORM.document.createComment('au-start');
         host.append(loc.$start, loc);
 
-        const itemContext = getRenderContext(
+        // const itemContext = getRenderContext(
+        //   CustomElementDefinition.create({
+        //     name: void 0,
+        //     template: textTemplate.content.cloneNode(true),
+        //     instructions: [
+        //       [
+        //         new TextBindingInstruction(new Interpolation(['', ''], [new AccessScopeExpression('item')]), false),
+        //       ],
+        //     ],
+        //     needsCompile: false,
+        //   }),
+        //   container,
+        // );
+
+        // const itemFactory = new ViewFactory(`item-view`, itemContext);
+        const itemFactory = container.get(DefinitionRenderer).getViewFactory(
           CustomElementDefinition.create({
             name: void 0,
             template: textTemplate.content.cloneNode(true),
@@ -557,10 +574,8 @@ describe(`Repeat`, function () {
             ],
             needsCompile: false,
           }),
-          container,
+          container
         );
-
-        const itemFactory = new ViewFactory(`item-view`, itemContext);
 
         const binding: PropertyBinding = {
           target: null,

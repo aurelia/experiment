@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/restrict-template-expressions */
 import { IContainer, ILogger, isObject, DI, IDisposable, onResolve } from '@aurelia/kernel';
-import { CustomElementDefinition, ICompiledRenderContext, IPlatform, PartialCustomElementDefinition } from '@aurelia/runtime-html';
+import { CustomElementDefinition, IPlatform, PartialCustomElementDefinition } from '@aurelia/runtime-html';
 
 import { IRouteContext, RouteContext } from './route-context.js';
 import { IRouterEvents, NavigationStartEvent, NavigationEndEvent, NavigationCancelEvent } from './router-events.js';
@@ -609,15 +609,15 @@ export class Router {
    *
    * @param viewportAgent - The ViewportAgent hosting the component associated with this RouteContext. If the RouteContext for the component+viewport combination already exists, the ViewportAgent will be updated in case it changed.
    * @param component - The custom element definition.
-   * @param renderContext - The `controller.context` of the component hosting the viewport that the route will be loaded into.
+   * @param ctxContainer - The `controller.context` of the component hosting the viewport that the route will be loaded into.
    *
    */
   public getRouteContext(
     viewportAgent: ViewportAgent | null,
     component: CustomElementDefinition,
-    renderContext: ICompiledRenderContext,
+    ctxContainer: IContainer,
   ): IRouteContext {
-    const container = renderContext.container;
+    const container = ctxContainer;
     const logger = container.get(ILogger).scopeTo('RouteContext');
 
     const routeDefinition = RouteDefinition.resolve(component.Type);

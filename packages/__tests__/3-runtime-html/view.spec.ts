@@ -1,4 +1,6 @@
+import { DI } from '@aurelia/kernel';
 import {
+  CustomElementDefinition,
   ViewFactory,
 } from '@aurelia/runtime-html';
 import {
@@ -15,8 +17,9 @@ class StubView {
 
 class StubContext {
   public constructor(
+    public container = DI.createContainer(),
     public nodes = { findTargets() { return []; } },
-    public compiledDefinition = { instructions: [] },
+    public compiledDefinition = { instructions: [] } as unknown as CustomElementDefinition,
   ) {}
 
   public compile(): this {
@@ -70,7 +73,7 @@ describe.skip(`ViewFactory`, function () {
     eachCartesianJoin(inputs, ([text1, doNotOverride1], [text2, size2, isPositive2], [text3, doNotOverride3], [text4, size4, isPositive4]) => {
       it(`setCacheSize(${text2},${text1}) -> tryReturnToCache -> create x2 -> setCacheSize(${text4},${text3}) -> tryReturnToCache -> create x2`, function () {
         const context = new StubContext();
-        const sut = new ViewFactory(null, context as any);
+        const sut = new ViewFactory(null, null!, context.container, context.compiledDefinition);
         const view1 = new StubView();
         const view2 = new StubView();
 
@@ -91,7 +94,7 @@ describe.skip(`ViewFactory`, function () {
           }
         } else {
           const created = sut.create();
-          assert.strictEqual(created.nodes, context.nodes, 'created.nodes');
+          assert.strictEqual(created.nodes.findTargets().length, context.nodes.findTargets().length, 'created.nodes');
         }
 
         // note: the difference in behavior between 0 (number) and '0' (string),

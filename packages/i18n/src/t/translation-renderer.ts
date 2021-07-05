@@ -13,7 +13,6 @@ import {
   AttrSyntax,
   IPlatform,
   IAttrMapper,
-  ICompiledRenderContext,
 } from '@aurelia/runtime-html';
 
 import type {
@@ -74,7 +73,6 @@ export class TranslationBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     controller: IHydratableController,
     target: HTMLElement,
     instruction: CallBindingInstruction,
@@ -82,7 +80,7 @@ export class TranslationBindingRenderer implements IRenderer {
     TranslationBinding.create({
       parser: this.parser,
       observerLocator: this.observerLocator,
-      context: context.container,
+      context: controller.container,
       controller,
       target,
       instruction,
@@ -144,7 +142,6 @@ export class TranslationBindBindingRenderer implements IRenderer {
 
   public render(
     flags: LifecycleFlags,
-    context: ICompiledRenderContext,
     controller: IHydratableController,
     target: HTMLElement,
     instruction: CallBindingInstruction,
@@ -152,7 +149,7 @@ export class TranslationBindBindingRenderer implements IRenderer {
     TranslationBinding.create({
       parser: this.parser,
       observerLocator: this.observerLocator,
-      context: context.container,
+      context: controller.container,
       controller,
       target,
       instruction,

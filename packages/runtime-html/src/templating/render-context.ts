@@ -261,7 +261,7 @@ export class RenderContext implements ICompiledRenderContext {
       if (name === void 0) {
         name = this.definition.name;
       }
-      factory = this.factory = new ViewFactory(name, this);
+      factory = this.factory = new ViewFactory(name, this, this.container, this.definition);
     }
     return factory;
   }
@@ -413,7 +413,7 @@ export class RenderContext implements ICompiledRenderContext {
   ): void {
     for (let i = 0; i < instructions.length; ++i) {
       const current = instructions[i];
-      this.renderers[current.type].render(flags, this, controller, target, current);
+      this.renderers[current.type].render(flags, controller, target, current);
     }
   }
 

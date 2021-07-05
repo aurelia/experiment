@@ -8,7 +8,6 @@ import {
   IObserverLocator,
   LifecycleFlags,
   StandardConfiguration,
-  ICompiledRenderContext,
   IHydratableController,
   IBinding,
   CallBindingInstruction,
@@ -90,7 +89,6 @@ describe('TranslationParametersBindingRenderer', function () {
 
     sut.render(
       LifecycleFlags.none,
-      { container } as unknown as ICompiledRenderContext,
       controller,
       PLATFORM.document.createElement('span'),
       callBindingInstruction,
@@ -111,7 +109,6 @@ describe('TranslationParametersBindingRenderer', function () {
 
     sut.render(
       LifecycleFlags.none,
-      { container } as unknown as ICompiledRenderContext,
       hydratable,
       targetElement,
       callBindingInstruction,

@@ -99,11 +99,11 @@ export abstract class SimpleActivityTrackingVMBase {
   ) {}
 
   public attached(): void {
-    this.tracker.setActive(this.$controller.context.definition.name);
+    this.tracker.setActive(this.$controller.definition.name);
   }
 
   public setNonActive(): void {
-    this.tracker.setActive(this.$controller.context.definition.name);
+    this.tracker.setActive(this.$controller.definition.name);
   }
 }
 

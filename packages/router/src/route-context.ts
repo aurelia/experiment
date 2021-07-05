@@ -227,7 +227,7 @@ export class RouteContext {
     }
 
     const router = container.get(IRouter);
-    const routeContext = router.getRouteContext(null, controller.context.definition, controller.context);
+    const routeContext = router.getRouteContext(null, controller.definition, controller.container);
     container.register(Registration.instance(IRouteContext, routeContext));
     routeContext.node = router.routeTree.root;
   }
@@ -254,8 +254,8 @@ export class RouteContext {
         // That's why we catch, log and re-throw instead of just letting the error bubble up.
         // This also gives us a set point in the future to potentially handle supported scenarios where this could occur.
         const controller = CustomElement.for(context, { searchParents: true });
-        logger.trace(`resolve(context:Node(nodeName:'${context.nodeName}'),controller:'${controller.context.definition.name}') - resolving RouteContext from controller's RenderContext`);
-        return controller.context.container.get(IRouteContext);
+        logger.trace(`resolve(context:Node(nodeName:'${context.nodeName}'),controller:'${controller.definition.name}') - resolving RouteContext from controller's RenderContext`);
+        return controller.container.get(IRouteContext);
       } catch (err) {
         logger.error(`Failed to resolve RouteContext from Node(nodeName:'${context.nodeName}')`, err);
         throw err;
@@ -264,14 +264,14 @@ export class RouteContext {
 
     if (isCustomElementViewModel(context)) {
       const controller = context.$controller!;
-      logger.trace(`resolve(context:CustomElementViewModel(name:'${controller.context.definition.name}')) - resolving RouteContext from controller's RenderContext`);
-      return controller.context.container.get(IRouteContext);
+      logger.trace(`resolve(context:CustomElementViewModel(name:'${controller.definition.name}')) - resolving RouteContext from controller's RenderContext`);
+      return controller.container.get(IRouteContext);
     }
 
     if (isCustomElementController(context)) {
       const controller = context;
-      logger.trace(`resolve(context:CustomElementController(name:'${controller.context.definition.name}')) - resolving RouteContext from controller's RenderContext`);
-      return controller.context.container.get(IRouteContext);
+      logger.trace(`resolve(context:CustomElementController(name:'${controller.definition.name}')) - resolving RouteContext from controller's RenderContext`);
+      return controller.container.get(IRouteContext);
     }
 
     logAndThrow(new Error(`Invalid context type: ${Object.prototype.toString.call(context)}`), logger);

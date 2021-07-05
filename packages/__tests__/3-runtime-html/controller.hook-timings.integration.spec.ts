@@ -1697,7 +1697,7 @@ interface IDelayedInvokerSpec {
 
 abstract class TestVM implements IViewModel {
   public readonly $controller!: ICustomElementController<this>;
-  public get name(): string { return this.$controller.context.definition.name; }
+  public get name(): string { return this.$controller.definition.name; }
 
   public readonly bindingDI: DelayedInvoker<'binding'>;
   public readonly boundDI: DelayedInvoker<'bound'>;

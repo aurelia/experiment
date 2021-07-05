@@ -9,9 +9,9 @@ import {
 } from './renderer.js';
 import { IPlatform } from './platform.js';
 import { CustomElement, CustomElementDefinition, CustomElementType } from './resources/custom-element.js';
-import { getRenderContext, IRenderContext } from './templating/render-context.js';
 import { IViewFactory } from './templating/view.js';
 import type { ISyntheticView } from './templating/controller.js';
+import { IDefinitionRenderer } from './templating/def-renderer.js';
 
 export function createElement<C extends Constructable = Constructable>(
   p: IPlatform,
@@ -54,21 +54,21 @@ export class RenderPlan {
     return this.lazyDefinition;
   }
 
-  public getContext(container: IContainer): IRenderContext {
-    const childFor = this.childFor;
-    let childContainer: IContainer | undefined = childFor.get(container);
-    if (childContainer == null) {
-      childFor.set(container, (childContainer = container.createChild()).register(...this.dependencies));
-    }
-    return getRenderContext(this.definition, childContainer);
-  }
+  // public getContext(container: IContainer): IRenderContext {
+  //   const childFor = this.childFor;
+  //   let childContainer: IContainer | undefined = childFor.get(container);
+  //   if (childContainer == null) {
+  //     childFor.set(container, (childContainer = container.createChild()).register(...this.dependencies));
+  //   }
+  //   return getRenderContext(this.definition, childContainer);
+  // }
 
   public createView(parentContainer: IContainer): ISyntheticView {
     return this.getViewFactory(parentContainer).create();
   }
 
   public getViewFactory(parentContainer: IContainer): IViewFactory {
-    return this.getContext(parentContainer).getViewFactory();
+    return parentContainer.get(IDefinitionRenderer).getViewFactory(this.definition, parentContainer.createChild());
   }
 
   /** @internal */

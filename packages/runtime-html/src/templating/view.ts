@@ -32,6 +32,8 @@ export class ViewFactory implements IViewFactory {
   public constructor(
     public name: string,
     public readonly context: IRenderContext,
+    public readonly container: IContainer,
+    public readonly def: CustomElementDefinition,
   ) {}
 
   public setCacheSize(size: number | '*', doNotOverrideIfAlreadySet: boolean): void {
@@ -74,15 +76,12 @@ export class ViewFactory implements IViewFactory {
     parentController?: ISyntheticView | ICustomElementController | ICustomAttributeController | undefined,
   ): ISyntheticView {
     const cache = this.cache;
-    let controller: ISyntheticView;
 
     if (cache != null && cache.length > 0) {
-      controller = cache.pop()!;
-      return controller;
+      return cache.pop()!;
     }
 
-    controller = Controller.forSyntheticView(null, this.context, this, flags, parentController);
-    return controller;
+    return Controller.forSyntheticView(null, null!, this, flags, parentController);
   }
 }
 
@@ -154,6 +153,7 @@ export class ViewLocator {
     viewNameOrSelector?: string | ViewSelector
   ): ComposableObjectComponentType<T> | null {
     if (object) {
+      debugger;
       const availableViews = Views.has(object.constructor) ? Views.get(object.constructor) : [];
       const resolvedViewName = typeof viewNameOrSelector === 'function'
         ? viewNameOrSelector(object, availableViews)

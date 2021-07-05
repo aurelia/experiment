@@ -78,7 +78,7 @@ export function connectTo<T, R = any>(settings?: ((store: Store<T>) => Observabl
       }
 
       const store = Controller.getCached(this)
-        ? Controller.getCached(this)!.context.container.get<Store<T>>(Store)
+        ? Controller.getCached(this)!.container.get<Store<T>>(Store)
         : STORE.container.get<Store<T>>(Store); // TODO: need to get rid of this helper for classic unit tests
 
       this._stateSubscriptions = createSelectors().map(s => getSource(store, s.selector).subscribe((state: unknown) => {

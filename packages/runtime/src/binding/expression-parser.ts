@@ -228,81 +228,83 @@ export const enum Access {
 }
 
 export const enum Precedence {
-  Variadic                = 0b000111101,
-  Assign                  = 0b000111110,
-  Conditional             = 0b000111111,
-  LogicalOR               = 0b001000000,
-  LogicalAND              = 0b010000000,
-  Equality                = 0b011000000,
-  Relational              = 0b100000000,
-  Additive                = 0b101000000,
-  Multiplicative          = 0b110000000,
-  Binary                  = 0b111000000,
-  LeftHandSide            = 0b111000001,
-  Primary                 = 0b111000010,
-  Unary                   = 0b111000011,
+  Variadic                = 0b0000111101,
+  Assign                  = 0b0000111110,
+  Conditional             = 0b0000111111,
+  Coalescing              = 0b0001000000,
+  LogicalOR               = 0b0010000000,
+  LogicalAND              = 0b0011000000,
+  Equality                = 0b0100000000,
+  Relational              = 0b0101000000,
+  Additive                = 0b0110000000,
+  Multiplicative          = 0b0111000000,
+  Binary                  = 0b1000000000,
+  LeftHandSide            = 0b1000000001,
+  Primary                 = 0b1000000010,
+  Unary                   = 0b1000000011,
 }
 const enum Token {
-  EOF                     = 0b110000000000_000_000000,
-  ExpressionTerminal      = 0b100000000000_000_000000,
-  AccessScopeTerminal     = 0b010000000000_000_000000,
-  ClosingToken            = 0b001000000000_000_000000,
-  OpeningToken            = 0b000100000000_000_000000,
-  BinaryOp                = 0b000010000000_000_000000,
-  UnaryOp                 = 0b000001000000_000_000000,
-  LeftHandSide            = 0b000000100000_000_000000,
-  StringOrNumericLiteral  = 0b000000011000_000_000000,
-  NumericLiteral          = 0b000000010000_000_000000,
-  StringLiteral           = 0b000000001000_000_000000,
-  IdentifierName          = 0b000000000110_000_000000,
-  Keyword                 = 0b000000000100_000_000000,
-  Identifier              = 0b000000000010_000_000000,
-  Contextual              = 0b000000000001_000_000000,
-  Precedence              = 0b000000000000_111_000000,
-  Type                    = 0b000000000000_000_111111,
-  FalseKeyword            = 0b000000000100_000_000000,
-  TrueKeyword             = 0b000000000100_000_000001,
-  NullKeyword             = 0b000000000100_000_000010,
-  UndefinedKeyword        = 0b000000000100_000_000011,
-  ThisScope               = 0b000000000110_000_000100,
-  HostScope               = 0b000000000110_000_000101,
-  ParentScope             = 0b000000000110_000_000110,
-  OpenParen               = 0b010100100000_000_000111,
-  OpenBrace               = 0b000100000000_000_001000,
-  Dot                     = 0b000000100000_000_001001,
-  CloseBrace              = 0b111000000000_000_001010,
-  CloseParen              = 0b111000000000_000_001011,
-  Comma                   = 0b110000000000_000_001100,
-  OpenBracket             = 0b010100100000_000_001101,
-  CloseBracket            = 0b111000000000_000_001110,
-  Colon                   = 0b110000000000_000_001111,
-  Question                = 0b110000000000_000_010000,
-  Ampersand               = 0b110000000000_000_010011,
-  Bar                     = 0b110000000000_000_010100,
-  BarBar                  = 0b110010000000_010_010101,
-  AmpersandAmpersand      = 0b110010000000_011_010110,
-  EqualsEquals            = 0b110010000000_100_010111,
-  ExclamationEquals       = 0b110010000000_100_011000,
-  EqualsEqualsEquals      = 0b110010000000_100_011001,
-  ExclamationEqualsEquals = 0b110010000000_100_011010,
-  LessThan                = 0b110010000000_101_011011,
-  GreaterThan             = 0b110010000000_101_011100,
-  LessThanEquals          = 0b110010000000_101_011101,
-  GreaterThanEquals       = 0b110010000000_101_011110,
-  InKeyword               = 0b110010000100_101_011111,
-  InstanceOfKeyword       = 0b110010000100_101_100000,
-  Plus                    = 0b010011000000_110_100001,
-  Minus                   = 0b010011000000_110_100010,
-  TypeofKeyword           = 0b000001000100_000_100011,
-  VoidKeyword             = 0b000001000100_000_100100,
-  Asterisk                = 0b110010000000_111_100101,
-  Percent                 = 0b110010000000_111_100110,
-  Slash                   = 0b110010000000_111_100111,
-  Equals                  = 0b100000000000_000_101000,
-  Exclamation             = 0b000001000000_000_101001,
-  TemplateTail            = 0b010000100000_000_101010,
-  TemplateContinuation    = 0b010000100000_000_101011,
-  OfKeyword               = 0b100000000101_000_101100
+  EOF                     = 0b110000000000_0000_000000,
+  ExpressionTerminal      = 0b100000000000_0000_000000,
+  AccessScopeTerminal     = 0b010000000000_0000_000000,
+  ClosingToken            = 0b001000000000_0000_000000,
+  OpeningToken            = 0b000100000000_0000_000000,
+  BinaryOp                = 0b000010000000_0000_000000,
+  UnaryOp                 = 0b000001000000_0000_000000,
+  LeftHandSide            = 0b000000100000_0000_000000,
+  StringOrNumericLiteral  = 0b000000011000_0000_000000,
+  NumericLiteral          = 0b000000010000_0000_000000,
+  StringLiteral           = 0b000000001000_0000_000000,
+  IdentifierName          = 0b000000000110_0000_000000,
+  Keyword                 = 0b000000000100_0000_000000,
+  Identifier              = 0b000000000010_0000_000000,
+  Contextual              = 0b000000000001_0000_000000,
+  Precedence              = 0b000000000000_1111_000000,
+  Type                    = 0b000000000000_0000_111111,
+  FalseKeyword            = 0b000000000100_0000_000000,
+  TrueKeyword             = 0b000000000100_0000_000001,
+  NullKeyword             = 0b000000000100_0000_000010,
+  UndefinedKeyword        = 0b000000000100_0000_000011,
+  ThisScope               = 0b000000000110_0000_000100,
+  HostScope               = 0b000000000110_0000_000101,
+  ParentScope             = 0b000000000110_0000_000110,
+  OpenParen               = 0b010100100000_0000_000111,
+  OpenBrace               = 0b000100000000_0000_001000,
+  Dot                     = 0b000000100000_0000_001001,
+  CloseBrace              = 0b111000000000_0000_001010,
+  CloseParen              = 0b111000000000_0000_001011,
+  Comma                   = 0b110000000000_0000_001100,
+  OpenBracket             = 0b010100100000_0000_001101,
+  CloseBracket            = 0b111000000000_0000_001110,
+  Colon                   = 0b110000000000_0000_001111,
+  Question                = 0b110000000000_0000_010000,
+  Ampersand               = 0b110000000000_0000_010011,
+  Bar                     = 0b110000000000_0000_010100,
+  QuestionQuestion        = 0b110010000000_0010_010101,
+  BarBar                  = 0b110010000000_0011_010110,
+  AmpersandAmpersand      = 0b110010000000_0100_010111,
+  EqualsEquals            = 0b110010000000_0101_011000,
+  ExclamationEquals       = 0b110010000000_0101_011001,
+  EqualsEqualsEquals      = 0b110010000000_0101_011010,
+  ExclamationEqualsEquals = 0b110010000000_0101_011011,
+  LessThan                = 0b110010000000_0110_011100,
+  GreaterThan             = 0b110010000000_0110_011101,
+  LessThanEquals          = 0b110010000000_0110_011110,
+  GreaterThanEquals       = 0b110010000000_0110_011111,
+  InKeyword               = 0b110010000100_0110_100000,
+  InstanceOfKeyword       = 0b110010000100_0110_100001,
+  Plus                    = 0b010011000000_0111_100010,
+  Minus                   = 0b010011000000_0111_100011,
+  TypeofKeyword           = 0b000001000100_0000_100100,
+  VoidKeyword             = 0b000001000100_0000_100101,
+  Asterisk                = 0b110010000000_1000_100110,
+  Percent                 = 0b110010000000_1000_100111,
+  Slash                   = 0b110010000000_1000_101000,
+  Equals                  = 0b100000000000_0000_101001,
+  Exclamation             = 0b000001000000_0000_101010,
+  TemplateTail            = 0b010000100000_0000_101011,
+  TemplateContinuation    = 0b010000100000_0000_101100,
+  OfKeyword               = 0b100000000101_0000_101101,
 }
 
 const $false = PrimitiveLiteralExpression.$false;
@@ -407,10 +409,11 @@ TPrec extends Precedence.Unary ? IsUnary :
                   TPrec extends Precedence.Equality ? IsBinary :
                     TPrec extends Precedence.LogicalAND ? IsBinary :
                       TPrec extends Precedence.LogicalOR ? IsBinary :
-                        TPrec extends Precedence.Variadic ?
-                          TType extends BindingType.Interpolation ? Interpolation :
-                            TType extends BindingType.ForCommand ? ForOfStatement :
-                              never : never {
+                        TPrec extends Precedence.Coalescing ? IsBinary :
+                          TPrec extends Precedence.Variadic ?
+                            TType extends BindingType.Interpolation ? Interpolation :
+                              TType extends BindingType.ForCommand ? ForOfStatement :
+                                never : never {
 
   if (bindingType === BindingType.CustomCommand) {
     return new CustomExpression(state.input) as any;
@@ -677,32 +680,51 @@ TPrec extends Precedence.Unary ? IsUnary :
   /** parseBinaryExpression
    * https://tc39.github.io/ecma262/#sec-multiplicative-operators
    *
-   * MultiplicativeExpression : (local precedence 6)
+   * MultiplicativeExpression : (local precedence 7)
    * UnaryExpression
    * MultiplicativeExpression * / % UnaryExpression
    *
-   * AdditiveExpression : (local precedence 5)
+   * AdditiveExpression : (local precedence 6)
    * MultiplicativeExpression
    * AdditiveExpression + - MultiplicativeExpression
    *
-   * RelationalExpression : (local precedence 4)
+   * RelationalExpression : (local precedence 5)
    * AdditiveExpression
    * RelationalExpression < > <= >= instanceof in AdditiveExpression
    *
-   * EqualityExpression : (local precedence 3)
+   * EqualityExpression : (local precedence 4)
    * RelationalExpression
    * EqualityExpression == != === !== RelationalExpression
    *
-   * LogicalANDExpression : (local precedence 2)
+   * LogicalANDExpression : (local precedence 3)
    * EqualityExpression
    * LogicalANDExpression && EqualityExpression
    *
-   * LogicalORExpression : (local precedence 1)
+   * LogicalORExpression : (local precedence 2)
    * LogicalANDExpression
    * LogicalORExpression || LogicalANDExpression
+   *
+   * CoalesceExpression : (local precedence 1)
+   * CoalesceExpressionHead ?? BitwiseORExpression
    */
+  let prevToken: Token | undefined;
+  let opToken: Token;
   while ((state.currentToken & Token.BinaryOp) > 0) {
-    const opToken = state.currentToken;
+    opToken = state.currentToken;
+    if (
+      prevToken !== void 0
+      && (
+        (opToken === Token.QuestionQuestion
+          && (prevToken === Token.AmpersandAmpersand || prevToken === Token.BarBar)
+        )
+        || (prevToken === Token.QuestionQuestion
+          && (opToken === Token.AmpersandAmpersand || opToken === Token.BarBar)
+        )
+      )
+    ) {
+      throw new Error(`Unexpected token: '${TokenValues[state.currentToken & Token.Type]}'`);
+    }
+    prevToken = opToken;
     if ((opToken & Token.Precedence) <= minPrecedence) {
       break;
     }
@@ -720,8 +742,8 @@ TPrec extends Precedence.Unary ? IsUnary :
    * https://tc39.github.io/ecma262/#prod-ConditionalExpression
    *
    * ConditionalExpression :
-   * 1. BinaryExpression
-   * 2. BinaryExpression ? AssignmentExpression : AssignmentExpression
+   * 1. ShortCircuitExpression
+   * 2. ShortCircuitExpression ? AssignmentExpression : AssignmentExpression
    *
    * IsValidAssignmentTarget
    * 1,2 = false
@@ -1170,7 +1192,7 @@ const TokenValues = [
 
   '(', '{', '.', '}', ')', ',', '[', ']', ':', '?', '\'', '"',
 
-  '&', '|', '||', '&&', '==', '!=', '===', '!==', '<', '>',
+  '&', '|', '??', '||', '&&', '==', '!=', '===', '!==', '<', '>',
   '<=', '>=', 'in', 'instanceof', '+', '-', 'typeof', 'void', '*', '%', '/', '=', '!',
   Token.TemplateTail, Token.TemplateContinuation,
   'of'
@@ -1350,7 +1372,16 @@ CharScanners[Char.Comma]        = returnToken(Token.Comma);
 CharScanners[Char.Minus]        = returnToken(Token.Minus);
 CharScanners[Char.Slash]        = returnToken(Token.Slash);
 CharScanners[Char.Colon]        = returnToken(Token.Colon);
-CharScanners[Char.Question]     = returnToken(Token.Question);
+// ?, ??
+CharScanners[Char.Question] =  s => {
+  if (nextChar(s) !== Char.Question) {
+    return Token.Question;
+  }
+  if (nextChar(s) === Char.Equals) {
+    throw new Error('Operator ??= is not supported.');
+  }
+  return Token.QuestionQuestion;
+};
 CharScanners[Char.OpenBracket]  = returnToken(Token.OpenBracket);
 CharScanners[Char.CloseBracket] = returnToken(Token.CloseBracket);
 CharScanners[Char.OpenBrace]    = returnToken(Token.OpenBrace);

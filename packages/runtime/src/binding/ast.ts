@@ -62,7 +62,7 @@ export const enum ExpressionKind {
 
 export type UnaryOperator = 'void' | 'typeof' | '!' | '-' | '+';
 
-export type BinaryOperator = '&&' | '||' | '==' | '===' | '!=' | '!==' | 'instanceof' | 'in' | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '<=' | '>=';
+export type BinaryOperator = '??' | '&&' | '||' | '==' | '===' | '!=' | '!==' | 'instanceof' | 'in' | '+' | '-' | '*' | '/' | '%' | '<' | '>' | '<=' | '>=';
 
 export type IsPrimary = AccessThisExpression | AccessScopeExpression | ArrayLiteralExpression | ObjectLiteralExpression | PrimitiveLiteralExpression | TemplateExpression;
 export type IsLiteral = ArrayLiteralExpression | ObjectLiteralExpression | PrimitiveLiteralExpression | TemplateExpression;
@@ -871,6 +871,8 @@ export class BinaryExpression {
       case '||':
         // eslint-disable-next-line @typescript-eslint/strict-boolean-expressions
         return this.left.evaluate(f, s, hs, l, c) || this.right.evaluate(f, s, hs, l, c);
+      case '??':
+        return this.left.evaluate(f, s, hs, l, c) ?? this.right.evaluate(f, s, hs, l, c);
       case '==':
         return this.left.evaluate(f, s, hs, l, c) == this.right.evaluate(f, s, hs, l, c);
       case '===':

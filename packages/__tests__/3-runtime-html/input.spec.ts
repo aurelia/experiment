@@ -87,4 +87,52 @@ describe('3-runtime-html/input.spec.ts', function () {
 
     await tearDown();
   });
+
+  it('works with ??', async function () {
+    const { ctx, tearDown, component, appHost, startPromise } = createFixture(
+      `<input value.to-view="prop1 ?? prop2" />`,
+      class App {
+        public prop1 = null;
+        public prop2 = 'hello';
+      }
+    );
+
+    await startPromise;
+    const input = appHost.querySelector('input');
+    assert.strictEqual(input.value, 'hello');
+
+    component.prop1 = undefined;
+    ctx.platform.domWriteQueue.flush();
+    assert.strictEqual(input.value, 'hello');
+
+    component.prop1 = 'ola';
+    ctx.platform.domWriteQueue.flush();
+    assert.strictEqual(input.value, 'ola');
+
+    await tearDown();
+  });
+
+  it('works with ?? for member access', async function () {
+    const { ctx, tearDown, component, appHost, startPromise } = createFixture(
+      `<input value.to-view="prop1.prop3 ?? prop2" />`,
+      class App {
+        public prop1 = { prop3: null };
+        public prop2 = 'hello';
+      }
+    );
+
+    await startPromise;
+    const input = appHost.querySelector('input');
+    assert.strictEqual(input.value, 'hello');
+
+    component.prop1.prop3 = undefined;
+    ctx.platform.domWriteQueue.flush();
+    assert.strictEqual(input.value, 'hello');
+
+    component.prop1.prop3 = 'ola';
+    ctx.platform.domWriteQueue.flush();
+    assert.strictEqual(input.value, 'ola');
+
+    await tearDown();
+  });
 });

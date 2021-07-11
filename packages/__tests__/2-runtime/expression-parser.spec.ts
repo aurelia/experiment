@@ -369,12 +369,73 @@ describe('ExpressionParser', function () {
     ...SimpleLogicalORList
   ];
 
+  // This forms the group Precedence.Coalesce
+  const SimpleShortCircuitList: [string, any][] = [
+    [`$38??$39`, new BinaryExpression('??', new AccessScopeExpression('$38'), new AccessScopeExpression('$39'))],
+    [`($38 || $39)??$40`, new BinaryExpression('??',
+      new BinaryExpression('||', new AccessScopeExpression('$38'), new AccessScopeExpression('$39')),
+      new AccessScopeExpression('$40')
+    )],
+    [`($38 && $39)??$40`, new BinaryExpression('??',
+      new BinaryExpression('&&', new AccessScopeExpression('$38'), new AccessScopeExpression('$39')),
+      new AccessScopeExpression('$40')
+    )],
+    [`$38 ?? ($39 || $40)`, new BinaryExpression('??',
+      new AccessScopeExpression('$38'),
+      new BinaryExpression('||', new AccessScopeExpression('$39'), new AccessScopeExpression('$40')),
+    )],
+    [`$38 ?? ($39 && $40)`, new BinaryExpression('??',
+      new AccessScopeExpression('$38'),
+      new BinaryExpression('&&', new AccessScopeExpression('$39'), new AccessScopeExpression('$40')),
+    )],
+    [`$38 ?? ($39 ?? $40)`, new BinaryExpression('??',
+      new AccessScopeExpression('$38'),
+      new BinaryExpression('??', new AccessScopeExpression('$39'), new AccessScopeExpression('$40')),
+    )],
+    [`$38 ?? $39 ?? $40`, new BinaryExpression('??',
+    new BinaryExpression('??', new AccessScopeExpression('$38'), new AccessScopeExpression('$39')),
+      new AccessScopeExpression('$40'),
+    )],
+    [`$38.$39 ?? $39 ?? $40`, new BinaryExpression('??',
+      new BinaryExpression('??',
+        new AccessMemberExpression(new AccessScopeExpression('$38'), '$39'),
+        new AccessScopeExpression('$39')
+      ),
+      new AccessScopeExpression('$40'),
+    )],
+    [`$38[$39] ?? $39 ?? $40`, new BinaryExpression('??',
+      new BinaryExpression('??',
+        new AccessKeyedExpression(new AccessScopeExpression('$38'), new AccessScopeExpression('$39')),
+        new AccessScopeExpression('$39')
+      ),
+      new AccessScopeExpression('$40'),
+    )],
+  ];
+
+  const InvalidSimpleShortCircuitList: string[] = [
+    '$38 || $39 ?? 40',
+    '$38 && $39 ?? 40',
+    '$38 || ($39 && 40 ?? $41)',
+    '$38 || ($39 || 40 ?? $41)',
+    '$38 && ($39 && 40 ?? $41)',
+    '$38 && ($39 || 40 ?? $41)',
+  ];
+
+  const InvalidNullishCoalescingAssignment: string[] = [
+    '$38 ??= $39'
+  ];
+
+  const SimpleIsShortCircuitList: [string, any][] = [
+    ...SimpleIsLogicalORList,
+    ...SimpleShortCircuitList
+  ];
+
   // This forms the group Precedence.Conditional
   const SimpleConditionalList: [string, any][] = [
     [`a?b:c`, new ConditionalExpression($a, $b, new AccessScopeExpression('c'))]
   ];
   const SimpleIsConditionalList: [string, any][] = [
-    ...SimpleIsLogicalORList,
+    ...SimpleIsShortCircuitList,
     ...SimpleConditionalList
   ];
 
@@ -593,6 +654,30 @@ describe('ExpressionParser', function () {
         for (const [input, expected] of SimpleLogicalORList) {
           it(input, function () {
             verifyResultOrError(input, expected, null, bindingType);
+          });
+        }
+      });
+
+      describe('parse SimpleShortCircuitList', function () {
+        for (const [input, expected] of SimpleShortCircuitList) {
+          it(input, function () {
+            verifyResultOrError(input, expected, null, bindingType);
+          });
+        }
+      });
+
+      describe('parse InvalidSimpleShortCircuitList', function () {
+        for (const input of InvalidSimpleShortCircuitList) {
+          it(input, function () {
+            verifyResultOrError(input, null, `Unexpected token: '??'`, bindingType);
+          });
+        }
+      });
+
+      describe('parse InvalidNullishCoalescingAssignment', function () {
+        for (const input of InvalidNullishCoalescingAssignment) {
+          it(input, function () {
+            verifyResultOrError(input, null, `Operator ??= is not supported.`, bindingType);
           });
         }
       });

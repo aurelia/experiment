@@ -1,9 +1,11 @@
 import { compareNumber, nextId, IDisposable, onResolve } from '@aurelia/kernel';
 import {
   applyMutationsToIndices,
+  BindingBehaviorExpression,
   BindingContext,
   Collection,
   CollectionObserver,
+  ExpressionKind,
   ForOfStatement,
   getCollectionObserver,
   IndexMap,
@@ -11,6 +13,7 @@ import {
   LifecycleFlags as LF,
   Scope,
   synchronizeIndices,
+  ValueConverterExpression,
 } from '@aurelia/runtime';
 import { IRenderLocation } from '../../dom.js';
 import { IViewFactory } from '../../templating/view.js';
@@ -27,6 +30,11 @@ function dispose(disposable: IDisposable): void {
   disposable.dispose();
 }
 
+const wrappedExprs = [
+  ExpressionKind.BindingBehavior,
+  ExpressionKind.ValueConverter,
+];
+
 @templateController('repeat')
 export class Repeat<C extends Collection = unknown[]> implements ICustomAttributeViewModel {
   public readonly id: number = nextId('au$component');
@@ -42,6 +50,9 @@ export class Repeat<C extends Collection = unknown[]> implements ICustomAttribut
   public readonly $controller!: ICustomAttributeController<this>; // This is set by the controller after this instance is constructed
 
   @bindable public items: Items<C>;
+  private innerItems: Items<C>;
+  private forOfBinding!: PropertyBinding;
+  private observingInnerItems: boolean = false;
 
   private normalizedItems?: unknown[] = void 0;
 
@@ -56,18 +67,20 @@ export class Repeat<C extends Collection = unknown[]> implements ICustomAttribut
     parent: IHydratedParentController,
     flags: LF,
   ): void | Promise<void> {
-    this.checkCollectionObserver(flags);
     const bindings = this.parent.bindings as PropertyBinding[];
     let binding: PropertyBinding = (void 0)!;
+    let forOf!: ForOfStatement;
     for (let i = 0, ii = bindings.length; i < ii; ++i) {
       binding = bindings[i];
       if (binding.target === this && binding.targetProperty === 'items') {
-        this.forOf = binding.sourceExpression as ForOfStatement;
+        forOf = this.forOf = binding.sourceExpression as ForOfStatement;
+        this.forOfBinding = binding;
         break;
       }
     }
 
-    this.local = this.forOf.declaration.evaluate(flags, this.$controller.scope, null, binding.locator, null) as string;
+    this.checkCollectionObserver(flags);
+    this.local = forOf.declaration.evaluate(flags, this.$controller.scope, null, binding.locator, null) as string;
   }
 
   public attaching(
@@ -119,6 +132,11 @@ export class Repeat<C extends Collection = unknown[]> implements ICustomAttribut
     if (!$controller.isActive) {
       return;
     }
+    if (this.observingInnerItems) {
+      this.items = this.forOf.iterable.evaluate(flags, $controller.scope, null, this.forOfBinding.locator, null) as Items<C>;
+      return;
+    }
+
     flags |= $controller.flags;
     this.normalizeToArray(flags);
 
@@ -155,13 +173,27 @@ export class Repeat<C extends Collection = unknown[]> implements ICustomAttribut
 
   // todo: subscribe to collection from inner expression
   private checkCollectionObserver(flags: LF): void {
+    const scope = this.$controller.scope;
+    let expression = this.forOf.iterable;
+    let observingInnerItems = this.observingInnerItems;
+    if ((flags & LF.fromBind) > 0) {
+      while (expression != null && wrappedExprs.includes(expression.$kind)) {
+        expression = (expression as ValueConverterExpression | BindingBehaviorExpression).expression;
+        observingInnerItems = true;
+      }
+      if (observingInnerItems) {
+        const innerItems = this.innerItems ??= expression.evaluate(flags, scope, null, this.forOfBinding.locator, null) as Items<C>;
+        observingInnerItems = !Object.is(this.items, innerItems);
+      }
+    }
+    const items = (this.observingInnerItems = observingInnerItems) ? this.innerItems : this.items;
     const oldObserver = this.observer;
     if ((flags & LF.fromUnbind)) {
       if (oldObserver !== void 0) {
         oldObserver.unsubscribe(this);
       }
     } else if (this.$controller.isActive) {
-      const newObserver = this.observer = getCollectionObserver(this.items);
+      const newObserver = this.observer = getCollectionObserver(items);
       if (oldObserver !== newObserver && oldObserver) {
         oldObserver.unsubscribe(this);
       }

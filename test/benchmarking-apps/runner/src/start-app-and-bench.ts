@@ -85,7 +85,7 @@ async function startApp(fxName: string, appPath: string, port: string) {
     const app = spawn(
       'node',
       [
-        '../../../packages/http-server/dist/esm/cli.js',
+        '../../../packages/http-server/dist/cjs/cli.js',
         '--root',
         join(appPath, 'dist'),
         '--port',

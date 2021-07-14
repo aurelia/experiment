@@ -1,10 +1,12 @@
 import typescript from '@rollup/plugin-typescript';
 import pkg from './package.json';
 
+const externals = ['os', 'path', 'fs', 'http', 'https', 'http2', 'url', 'stream'];
+
 export default [
   {
     input: 'src/index.ts',
-    external: Object.keys(pkg.dependencies).concat('os', 'path', 'fs', 'http', 'https', 'http2', 'url', 'stream'),
+    external: [...Object.keys(pkg.dependencies), ...externals],
     output: [
       {
         file: 'dist/esm/index.js',
@@ -26,11 +28,16 @@ export default [
   },
   {
     input: 'src/cli.ts',
-    external: Object.keys(pkg.dependencies).concat('os', 'path', 'fs', 'http', 'https', 'http2', 'url', 'stream'),
+    external: [...Object.keys(pkg.dependencies), ...externals],
     output: [
       {
         file: 'dist/esm/cli.js',
         format: 'es',
+        sourcemap: true
+      },
+      {
+        file: 'dist/cjs/cli.js',
+        format: 'cjs',
         sourcemap: true
       },
     ],

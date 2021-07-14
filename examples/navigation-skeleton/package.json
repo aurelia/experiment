@@ -5,8 +5,8 @@
   "scripts": {
     "watch": "webpack-dev-server",
     "build": "rimraf dist && webpack --config webpack.config.js",
-    "serve": "node ./node_modules/@aurelia/http-server/dist/esm/cli.js au.conf.js",
-    "build-serve": "rimraf dist && webpack --config webpack.config.js && node ./node_modules/@aurelia/http-server/dist/esm/cli.js au.conf.js",
+    "serve": "node ./node_modules/@aurelia/http-server/dist/cjs/cli.js au.conf.js",
+    "build-serve": "rimraf dist && webpack --config webpack.config.js && node ./node_modules/@aurelia/http-server/dist/cjs/cli.js au.conf.js",
     "now": "rimraf dist && webpack --config webpack.config.js && cd dist && now && cd .."
   },
   "dependencies": {

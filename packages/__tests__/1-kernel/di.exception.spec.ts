@@ -30,7 +30,7 @@ describe('Exception', function () {
       ) {}
     }
 
-    assert.throws(() => container.get(IFoo), /AUR0003:Foo/, 'test');
-    // assert.throws(() => container.get(IFoo), /.*Cycl*/, 'test');
+    // assert.throws(() => container.get(IFoo), /AUR0003:Foo/, 'test');
+    assert.throws(() => container.get(IFoo), /.*Cycl*/, 'test');
   });
 });

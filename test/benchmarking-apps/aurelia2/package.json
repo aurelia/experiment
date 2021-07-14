@@ -7,7 +7,7 @@
   "scripts": {
     "start": "webpack-dev-server",
     "build-app": "webpack",
-    "serve": "node ../../../node_modules/@aurelia/http-server/dist/esm/cli.js au.conf.js"
+    "serve": "node ../../../node_modules/@aurelia/http-server/dist/cjs/cli.js au.conf.js"
   },
   "keywords": [],
   "author": "",

@@ -35,12 +35,10 @@
     "lint": "eslint --cache --ext .js,.ts src/",
     "lint:ci": "eslint --cache --ext .js,.ts --quiet --report-unused-disable-directives src/",
     "bundle": "ts-node -P ../../tsconfig.json ../../scripts/bundle.ts umd,esm,system aurelia",
-    "build:tsc": "tsc -b",
-    "build": "rollup -c",
-    "build:release": "npm run build",
-    "postbuild": "tsc --emitDeclarationOnly",
-    "dev:tsc": "tsc -b -w --preserveWatchOutput",
-    "dev": "rollup -c -w",
+    "build": "tsc -b",
+    "build:release": "rollup -c",
+    "postbuild:release": "tsc --emitDeclarationOnly",
+    "dev": "tsc -b -w --preserveWatchOutput",
     "publish:dev": "npm publish --tag dev",
     "publish:latest": "npm publish --tag latest",
     "rollup": "rollup -c"
@@ -61,5 +59,6 @@
   },
   "engines": {
     "node": ">=14.17.0"
-  }
+  },
+  "rollupExternal": ["fs", "path"]
 }

@@ -3,59 +3,50 @@ import typescript from '@rollup/plugin-typescript';
 import replace from '@rollup/plugin-replace';
 import { terser } from 'rollup-plugin-terser';
 import pkg from './package.json';
-import { exec } from 'child_process';
 
-const BUILD = process.env.BUILD ?? '';
-const isDevBuild = BUILD === 'dev';
-const isProduction = BUILD === 'prod';
-const sourceMap = process.env.MAP === 'true';
-const emitDeclaration = process.env.TYPES === 'true';
+const isDevBuild = process.env.BUILD === 'dev';
 
 export default {
   input: 'src/index.ts',
-  external: Object.keys(pkg.dependencies).concat('rxjs/operators/index.js'),
+  external: Object.keys(pkg.dependencies).concat(pkg.rollupExternal),
   output: [
     {
-      file: `dist/esm/index${BUILD ? `.${BUILD}` : ''}.js`,
+      file: `dist/esm/index${isDevBuild ? `.dev` : ''}.js`,
       format: 'es',
-      sourcemap: sourceMap,
+      sourcemap: true,
     },
     {
-      file: `dist/cjs/index${BUILD ? `.${BUILD}` : ''}.js`,
+      file: `dist/cjs/index${isDevBuild ? `.dev` : ''}.js`,
       format: 'cjs',
-      sourcemap: sourceMap,
+      sourcemap: true,
     },
   ],
   plugins: [
     typescript({
       tsconfig: 'tsconfig.build.json',
-      sourceMap: sourceMap,
-      inlineSources: sourceMap && isDevBuild,
+      sourceMap: true,
+      inlineSources: isDevBuild,
       include: ['../global.d.ts', 'src/**/*.ts'],
     }),
     replace({
       values: {
-        // @ts-ignore
-        __DEV__: isDevBuild
+        __DEV__: String(isDevBuild)
       },
       preventAssignment: true,
     }),
-    isProduction
-      ? terser({
+    isDevBuild
+      ? null
+      : terser({
           module: true,
           compress: {
             ecma: 2015,
             pure_getters: true
+          },
+          mangle: {
+            properties: {
+              regex: /^_/
+            }
           }
-        })
-      : null,
-    emitDeclaration
-      ? {
-        closeBundle() {
-          console.log(`building types for ${pkg.name}...`);
-          exec('npm run build:tsc');
-        }
-      }
-      : null
+        }),
   ].filter(Boolean)
 };

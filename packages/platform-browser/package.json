@@ -29,12 +29,11 @@
   "scripts": {
     "lint": "eslint --cache --ext .js,.ts src/",
     "lint:ci": "eslint --cache --ext .js,.ts --quiet --report-unused-disable-directives src/",
-    "build:tsc": "tsc -b",
-    "build": "npm run rollup",
-    "build:release": "npm run build && npm run build:prod && npm run build:dev",
-    "build:prod": "rollup -c --environment BUILD:prod",
-    "build:dev": "rollup -c --environment MAP,BUILD:dev",
-    "postbuild": "tsc --emitDeclarationOnly",
+    "build": "tsc -b",
+    "build:release": "npm run build:prod && npm run build:dev",
+    "postbuild:release": "tsc --emitDeclarationOnly",
+    "build:prod": "rollup -c",
+    "build:dev": "rollup -c --environment BUILD:dev",
     "dev": "tsc -b -w --preserveWatchOutput",
     "publish:dev": "npm publish --tag dev",
     "publish:latest": "npm publish --tag latest",
@@ -51,5 +50,6 @@
   },
   "engines": {
     "node": ">=14.17.0"
-  }
+  },
+  "rollupExternal": []
 }

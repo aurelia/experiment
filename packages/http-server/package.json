@@ -33,7 +33,10 @@
   "scripts": {
     "lint": "eslint --cache --ext .js,.ts src/",
     "lint:ci": "eslint --cache --ext .js,.ts --quiet --report-unused-disable-directives src/",
-    "build": "tsc -b",
+    "build": "rollup -c",
+    "postbuild": "tsc --emitDeclarationOnly",
+    "build:cjs": "tsc --project tsconfig.cjs.json",
+    "build:esm": "tsc --project tsconfig.esm.json",
     "build:release": "rollup -c",
     "postbuild:release": "tsc --emitDeclarationOnly",
     "dev": "tsc -b -w --preserveWatchOutput",

@@ -1,0 +1,56 @@
+{
+  "name": "js-framework-benchmark-aurelia2-npm",
+  "description": "Benchmark for aurelia 2 framework latest npm",
+  "js-framework-benchmark": {
+    "frameworkVersionFromPackage": "aurelia",
+    "customURL": "/dist/"
+
+  },
+  "keywords": [
+    "aurelia",
+    "aurelia 2",
+    "au2"
+  ],
+  "version": "0.0.0",
+  "repository": {
+    "type": "git",
+    "url": "???"
+  },
+  "license": "UNLICENSED",
+  "dependencies": {
+    "aurelia": "dev"
+  },
+  "devDependencies": {
+    "@aurelia/testing": "dev",
+    "@aurelia/webpack-loader": "dev",
+    "@types/node": "^15.12.4",
+    "@typescript-eslint/eslint-plugin": "^4.27.0",
+    "@typescript-eslint/parser": "^4.27.0",
+    "autoprefixer": "^10.2.6",
+    "css-loader": "^5.2.6",
+    "eslint": "^7.29.0",
+    "file-loader": "^6.2.0",
+    "html-webpack-plugin": "^5.3.1",
+    "htmlhint": "^0.15.1",
+    "postcss": "^8.3.5",
+    "postcss-loader": "^6.1.0",
+    "rimraf": "^3.0.2",
+    "style-loader": "^2.0.0",
+    "ts-loader": "^9.2.3",
+    "typescript": "^4.3.4",
+    "url-loader": "^4.1.1",
+    "webpack": "^5.39.1",
+    "webpack-bundle-analyzer": "^4.4.2",
+    "webpack-cli": "^4.7.2",
+    "webpack-dev-server": "^3.11.2"
+  },
+  "scripts": {
+    "lint:js": "eslint src test --ext .js,.ts",
+    "lint:html": "htmlhint -c .htmlhintrc src",
+    "lint": "npm run lint:js && npm run lint:html",
+    "start": "webpack serve",
+    "build-dev": "rimraf dist && webpack --env development",
+    "build-prod": "rimraf dist && webpack --env production",
+    "analyze": "rimraf dist && webpack --env production --analyze"
+  }
+}

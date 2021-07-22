@@ -1,23 +1,23 @@
-/* eslint-disable eqeqeq */
-/* eslint-disable @typescript-eslint/restrict-template-expressions */
-import { emptyArray, isNumberOrBigInt, isStringOrDate } from '@aurelia/kernel';
-import { LifecycleFlags as LF } from '../observation.js';
-import { BindingContext } from '../observation/binding-context.js';
-import { ISignaler } from '../observation/signaler.js';
-import { BindingBehavior, BindingBehaviorInstance, BindingBehaviorFactory } from '../binding-behavior.js';
-import { ValueConverter, ValueConverterInstance } from '../value-converter.js';
-
-import type { IIndexable, IServiceLocator, ResourceDefinition } from '@aurelia/kernel';
+import { BindingBehavior, BindingBehaviorFactory, BindingBehaviorInstance } from '../binding-behavior.js';
 import type {
   Collection,
   IBindingContext,
+  IConnectable,
   IObservable,
   IOverrideContext,
-  IConnectable,
   ISubscriber,
 } from '../observation.js';
-import type { Scope } from '../observation/binding-context.js';
+import type { IIndexable, IServiceLocator, ResourceDefinition } from '@aurelia/kernel';
+import { ValueConverter, ValueConverterInstance } from '../value-converter.js';
+/* eslint-disable eqeqeq */
+/* eslint-disable @typescript-eslint/restrict-template-expressions */
+import { emptyArray, isNumberOrBigInt, isStringOrDate } from '@aurelia/kernel';
+
+import { BindingContext } from '../observation/binding-context.js';
 import { IConnectableBinding } from './connectable.js';
+import { ISignaler } from '../observation/signaler.js';
+import { LifecycleFlags as LF } from '../observation.js';
+import type { Scope } from '../observation/binding-context.js';
 
 export const enum ExpressionKind {
   CallsFunction        = 0b000000000100_00000, // Calls a function (CallFunction, CallScope, CallMember, TaggedTemplate) -> needs a valid function object returning from its lefthandside's evaluate()
@@ -1302,7 +1302,7 @@ export class ForOfStatement {
       case '[object Number]': return result as number;
       case '[object Null]': return 0;
       case '[object Undefined]': return 0;
-      default: throw new Error(`Cannot count ${toStringTag.call(result)}`);
+      default: throw new Error(`Cannot count ${String(toStringTag.call(result))}`);
     }
   }
 
@@ -1315,7 +1315,7 @@ export class ForOfStatement {
       case '[object Number]': return $number(result as number, func);
       case '[object Null]': return;
       case '[object Undefined]': return;
-      default: throw new Error(`Cannot iterate over ${toStringTag.call(result)}`);
+      default: throw new Error(`Cannot iterate over ${String(toStringTag.call(result))}`);
     }
   }
 

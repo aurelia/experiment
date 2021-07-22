@@ -173,6 +173,7 @@ describe('ObserverLocator', function () {
     { markup: `<div css="color:green;"></div>`, ctor: StyleAttributeAccessor },
     { markup: `<select value=""></select>`, ctor: SelectValueObserver },
     { markup: `<input value=""></input>`, ctor: ValueAttributeObserver },
+    { markup: `<div value="" as-element="input"></div>`, ctor: ValueAttributeObserver },
     { markup: `<input checked="true"></input>`, ctor: CheckedObserver },
     { markup: `<input files=""></input>`, ctor: ValueAttributeObserver },
     { markup: `<textarea value=""></textarea>`, ctor: ValueAttributeObserver },
@@ -209,11 +210,11 @@ describe('ObserverLocator', function () {
                       if (hasAdapterObserver) {
                         if (adapterIsDefined) {
                           sut.addAdapter({getObserver() {
-                            return dummyObserver;
+                              return dummyObserver;
                           }});
                         } else {
                           sut.addAdapter({getObserver() {
-                            return null;
+                              return null;
                           }});
                         }
                       }
@@ -282,11 +283,11 @@ describe('ObserverLocator', function () {
             if (hasAdapterObserver) {
               if (adapterIsDefined) {
                 sut.addAdapter({getObserver() {
-                  return dummyObserver;
+                    return dummyObserver;
                 }});
               } else {
                 sut.addAdapter({getObserver() {
-                  return null;
+                    return null;
                 }});
               }
             }

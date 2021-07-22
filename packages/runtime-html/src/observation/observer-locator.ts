@@ -277,7 +277,7 @@ export class NodeObserverLocator implements INodeObserverLocator {
       case 'style':
         return new StyleAttributeAccessor(el);
     }
-    const eventsConfig: NodeObserverConfig | undefined = this.events[el.tagName]?.[key as string] ?? this.globalEvents[key as string];
+    const eventsConfig: NodeObserverConfig | undefined = this.events[el.getAttribute('as-element')?.toUpperCase() ?? el.tagName]?.[key as string] ?? this.globalEvents[key as string];
     if (eventsConfig != null) {
       return new eventsConfig.type(el, key, new EventSubscriber(eventsConfig), requestor, this.locator);
     }

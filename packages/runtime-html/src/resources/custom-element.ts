@@ -187,6 +187,25 @@ export function containerless(target?: Constructable): void | ((target: Construc
 }
 
 /**
+ * Decorator: Indicates that the custom element should be rendered with the template provided.
+ */
+export function template(html: string | Node, ...dependencies: Exclude<PartialCustomElementDefinition['dependencies'], undefined>) {
+  return function ($target: Constructable) {
+    CustomElement.annotate($target, 'template', html);
+    if (dependencies !== undefined && dependencies.length > 0) {
+      CustomElement.annotate($target, 'dependencies', dependencies);
+    }
+  };
+}
+
+/**
+ * Decorator: Indicates that the custom element should be rendered with the template provided.
+ */
+export function inlineView(html: string | Node, ...dependencies: Exclude<PartialCustomElementDefinition['dependencies'], undefined>) {
+  return template(html, dependencies);
+}
+
+/**
  * Decorator: Indicates that the custom element should be rendered with the strict binding option. undefined/null -> 0 or '' based on type
  */
 export function strict(target: Constructable): void;

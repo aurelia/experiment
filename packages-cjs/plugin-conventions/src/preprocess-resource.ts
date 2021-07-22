@@ -22,6 +22,7 @@ interface IFoundResource {
   implicitStatement?: IPos;
   runtimeImportName?: string;
   customName?: IPos;
+  customElementName?: string;
 }
 
 interface IFoundDecorator {
@@ -35,7 +36,8 @@ interface IModifyResourceOptions {
   implicitElement?: IPos;
   localDeps: string[];
   conventionalDecorators: [number, string][];
-  customElementName?: IPos;
+  customElementNamePosition?: IPos;
+  customElementName?: string;
 }
 
 export function preprocessResource(unit: IFileUnit, options: IPreprocessOptions): ModifyCodeResult {
@@ -47,7 +49,7 @@ export function preprocessResource(unit: IFileUnit, options: IPreprocessOptions)
   let runtimeImport: ICapturedImport = { names: [], start: 0, end: 0 };
 
   let implicitElement: IPos | undefined;
-  let customElementName: IPos | undefined; // for @customName('custom-name')
+  let customElementNamePosition: IPos | undefined; // for @customName('custom-name')
 
   // When there are multiple exported classes (e.g. local value converters),
   // they might be deps for composing the main implicit custom element.
@@ -75,7 +77,7 @@ export function preprocessResource(unit: IFileUnit, options: IPreprocessOptions)
     // Note this convention simply doesn't work for
     //   class Foo {}
     //   export {Foo};
-    const resource = findResource(s, expectedResourceName, unit.filePair, unit.contents);
+    const resource = findResource(s, expectedResourceName, unit);
     if (!resource) return;
     const {
       localDep,
@@ -91,7 +93,7 @@ export function preprocessResource(unit: IFileUnit, options: IPreprocessOptions)
     if (runtimeImportName && !auImport.names.includes(runtimeImportName)) {
       ensureTypeIsExported(runtimeImport.names, runtimeImportName);
     }
-    if (customName) customElementName = customName;
+    if (customName) customElementNamePosition = customName;
   });
 
   return modifyResource(unit, {
@@ -100,7 +102,7 @@ export function preprocessResource(unit: IFileUnit, options: IPreprocessOptions)
     implicitElement,
     localDeps,
     conventionalDecorators,
-    customElementName
+    customElementNamePosition
   });
 }
 
@@ -111,17 +113,20 @@ function modifyResource(unit: IFileUnit, options: IModifyResourceOptions) {
     implicitElement,
     localDeps,
     conventionalDecorators,
+    customElementNamePosition,
     customElementName
   } = options;
 
   const m = modifyCode(unit.contents, unit.path);
-  if (implicitElement && unit.filePair) {
+  if (implicitElement && (unit.filePair || unit.inline)) {
     // @view() for foo.js and foo-view.html
     // @customElement() for foo.js and foo.html
-    const dec = kebabCase(unit.filePair).startsWith(`${expectedResourceName}-view`) ? 'view' : 'customElement';
+    const dec = (unit.filePair !== undefined && kebabCase(unit.filePair).startsWith(`${expectedResourceName}-view`)) ? 'view' : 'customElement';
 
-    const viewDef = '__au2ViewDef';
-    m.prepend(`import * as ${viewDef} from './${unit.filePair}';\n`);
+    const viewDef = unit.inline ? `{ name: ${customElementName}}` : '__au2ViewDef';
+    if (!unit.inline) {
+      m.prepend(`import * as ${viewDef} from './${unit.filePair}';\n`);
+    }
 
     if (localDeps.length) {
       // When in-file deps are used, move the body of custom element to end of the file,
@@ -129,18 +134,18 @@ function modifyResource(unit: IFileUnit, options: IModifyResourceOptions) {
       const elementStatement = unit.contents.slice(implicitElement.pos, implicitElement.end);
       m.replace(implicitElement.pos, implicitElement.end, '');
 
-      if (customElementName) {
-        const name = unit.contents.slice(customElementName.pos, customElementName.end);
+      if (customElementNamePosition) {
+        const name = unit.contents.slice(customElementNamePosition.pos, customElementNamePosition.end);
         // Overwrite element name
-        m.append(`\n${elementStatement.substring(0, customElementName.pos - implicitElement.pos)}{ ...${viewDef}, name: ${name}, dependencies: [ ...${viewDef}.dependencies, ${localDeps.join(', ')} ] }${elementStatement.substring(customElementName.end - implicitElement.pos)}\n`);
+        m.append(`\n${elementStatement.substring(0, customElementNamePosition.pos - implicitElement.pos)}{ ...${viewDef}, name: ${name}, dependencies: [ ...${viewDef}.dependencies, ${localDeps.join(', ')} ] }${elementStatement.substring(customElementNamePosition.end - implicitElement.pos)}\n`);
       } else {
         m.append(`\n@${dec}({ ...${viewDef}, dependencies: [ ...${viewDef}.dependencies, ${localDeps.join(', ')} ] })\n${elementStatement}\n`);
       }
     } else {
-      if (customElementName) {
+      if (customElementNamePosition) {
         // Overwrite element name
-        const name = unit.contents.slice(customElementName.pos, customElementName.end);
-        m.replace(customElementName.pos, customElementName.end,`{ ...${viewDef}, name: ${name} }`);
+        const name = unit.contents.slice(customElementNamePosition.pos, customElementNamePosition.end);
+        m.replace(customElementNamePosition.pos, customElementNamePosition.end, `{ ...${viewDef}, name: ${name} }`);
       } else {
         conventionalDecorators.push([implicitElement.pos, `@${dec}(${viewDef})\n`]);
       }
@@ -162,11 +167,11 @@ function modifyResource(unit: IFileUnit, options: IModifyResourceOptions) {
 
 function captureImport(s: ts.Statement, lib: string, code: string): ICapturedImport | void {
   if (ts.isImportDeclaration(s) &&
-      ts.isStringLiteral(s.moduleSpecifier) &&
-      s.moduleSpecifier.text === lib &&
-      s.importClause &&
-      s.importClause.namedBindings &&
-      ts.isNamedImports(s.importClause.namedBindings)) {
+    ts.isStringLiteral(s.moduleSpecifier) &&
+    s.moduleSpecifier.text === lib &&
+    s.importClause &&
+    s.importClause.namedBindings &&
+    ts.isNamedImports(s.importClause.namedBindings)) {
     return {
       names: s.importClause.namedBindings.elements.map(e => e.name.text),
       start: ensureTokenStart(s.pos, code),
@@ -220,14 +225,15 @@ function isKindOfSame(name1: string, name2: string): boolean {
   return name1.replace(/-/g, '') === name2.replace(/-/g, '');
 }
 
-function findResource(node: ts.Node, expectedResourceName: string, filePair: string | undefined, code: string): IFoundResource | void {
+function findResource(node: ts.Node, expectedResourceName: string, unit: IFileUnit): IFoundResource | void {
+  const { contents: code, filePair, inline } = unit;
   if (!ts.isClassDeclaration(node)) return;
   if (!node.name) return;
   if (!isExported(node)) return;
   const pos = ensureTokenStart(node.pos, code);
 
   const className = node.name.text;
-  const {name, type} = nameConvention(className);
+  const { name, type } = nameConvention(className);
   const isImplicitResource = isKindOfSame(name, expectedResourceName);
   const foundType = findDecoratedResourceType(node);
 
@@ -251,16 +257,18 @@ function findResource(node: ts.Node, expectedResourceName: string, filePair: str
       const customName = foundType.expression.arguments[0] as ts.StringLiteral;
       return {
         implicitStatement: { pos: pos, end: node.end },
-        customName: { pos: ensureTokenStart(customName.pos, code), end: customName.end }
+        customName: { pos: ensureTokenStart(customName.pos, code), end: customName.end },
+        customElementName: name
       };
     }
   } else {
     if (type === 'customElement') {
       // Custom element can only be implicit resource
-      if (isImplicitResource && filePair) {
+      if (isImplicitResource && (inline || filePair)) {
         return {
           implicitStatement: { pos: pos, end: node.end },
-          runtimeImportName: kebabCase(filePair).startsWith(`${expectedResourceName}-view`) ? 'view' : 'customElement'
+          runtimeImportName: filePair && kebabCase(filePair).startsWith(`${expectedResourceName}-view`) ? 'view' : 'customElement',
+          customElementName: name
         };
       }
     } else {

@@ -15,6 +15,7 @@ export interface IFileUnit {
   // For foo.js or foo.ts, this is foo.html or foo.md or foo.haml or foo.pug
   // For foo.html (or other templates), this is foo.css or foo.scss or foo.sass or foo.less or foo.styl
   filePair?: string;
+  inline?: boolean;
 }
 
 export interface IOptionalPreprocessOptions {

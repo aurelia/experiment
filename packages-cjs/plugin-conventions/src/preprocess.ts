@@ -33,7 +33,11 @@ export function preprocess(
       path.join(base, unit.path.slice(0, - ext.length) + e)
     );
     const filePair = possibleFilePair.find(_fileExists);
-    if (filePair) {
+    const containsInline = /@(template|inlineView)\((.*)\)/g.test(unit.contents);
+    if (containsInline) {
+      unit.inline = true;
+    }
+    else if (filePair) {
       if (allOptions.useProcessedFilePairFilename) {
         unit.filePair = `${basename}.html`;
       } else {
@@ -43,7 +47,7 @@ export function preprocess(
       // Try foo.js and foo-view.html convention.
       // This convention is handled by @view(), not @customElement().
       const possibleViewPair = allOptions.templateExtensions.map(e =>
-        path.join(base, `${unit.path.slice(0, - ext.length)  }-view${e}`)
+        path.join(base, `${unit.path.slice(0, - ext.length)}-view${e}`)
       );
       const viewPair = possibleViewPair.find(_fileExists);
       if (viewPair) {

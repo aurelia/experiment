@@ -19,7 +19,12 @@ describe('3-runtime-html/let.spec.ts', function () {
         await start();
       } catch (e) {
         ex = e;
-        assert.includes(e.toString(), `Invalid command ${command} for <let>. Only to-view/bind supported.`);
+        // assert.includes(e.toString(), `Invalid command ${command} for <let>. Only to-view/bind supported.`);
+        assert.strictEqual(
+          e.toString().includes(`Invalid command ${command} for <let>. Only to-view/bind supported.`)
+          || e.toString().includes(`AUR0704:${command}`),
+          true
+        );
       }
       assert.instanceOf(ex, Error);
       await tearDown();
@@ -56,7 +61,9 @@ describe('3-runtime-html/let.spec.ts', function () {
 
     await start();
     assert.visibleTextEqual(appHost, '1');
-    assert.strictEqual(callArgs.length, 1);
+    if (__DEV__) {
+      assert.strictEqual(callArgs.length, 1);
+    }
     assert.deepStrictEqual(callArgs[0], [
       `Property my-prop is declared with literal string 1. ` +
       `Did you mean my-prop.bind="1"?`

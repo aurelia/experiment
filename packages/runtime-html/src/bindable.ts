@@ -51,7 +51,7 @@ export function bindable(configOrTarget?: PartialBindableDefinition | {}, prop?:
       config.property = $prop;
     }
 
-    Metadata.define(Bindable.name, BindableDefinition.create($prop, config), $target.constructor, $prop);
+    Metadata.define(baseName, BindableDefinition.create($prop, config), $target.constructor, $prop);
     Protocol.annotation.appendTo($target.constructor as Constructable, Bindable.keyFrom($prop));
   }
 
@@ -78,7 +78,7 @@ export function bindable(configOrTarget?: PartialBindableDefinition | {}, prop?:
 }
 
 function isBindableAnnotation(key: string): boolean {
-  return key.startsWith(Bindable.name);
+  return key.startsWith(baseName);
 }
 
 type BFluent = {
@@ -114,10 +114,10 @@ type B2345 = B345 & B2<B345>;
 type B12345 = B2345 & B1<B2345>;
 
 const baseName = Protocol.annotation.keyFor('bindable');
-export const Bindable = {
+export const Bindable = Object.freeze({
   name: baseName,
   keyFrom(name: string): string {
-    return `${Bindable.name}:${name}`;
+    return `${baseName}:${name}`;
   },
   from(...bindableLists: readonly (BindableDefinition | Record<string, PartialBindableDefinition> | readonly string[] | undefined)[]): Record<string, BindableDefinition> {
     const bindables: Record<string, BindableDefinition> = {};
@@ -199,7 +199,7 @@ export const Bindable = {
     return builder;
   },
   getAll(Type: Constructable): readonly BindableDefinition[] {
-    const propStart = Bindable.name.length + 1;
+    const propStart = baseName.length + 1;
     const defs: BindableDefinition[] = [];
     const prototypeChain = getPrototypeChain(Type);
 
@@ -219,7 +219,7 @@ export const Bindable = {
     }
     return defs;
   },
-};
+});
 
 export class BindableDefinition {
   private constructor(

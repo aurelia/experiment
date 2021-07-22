@@ -30,9 +30,8 @@ export class If implements ICustomAttributeViewModel {
   })
   public cache: boolean = true;
   private pending: void | Promise<void> = void 0;
-  private wantsDeactivate: boolean = false;
-  private swapId: number = 0;
-  private ctrl!: ICustomAttributeController<If>;
+  private _wantsDeactivate: boolean = false;
+  private _swapId: number = 0;
 
   public constructor(
     private readonly ifFactory: IViewFactory,
@@ -40,19 +39,16 @@ export class If implements ICustomAttributeViewModel {
     private readonly work: IWorkTracker,
   ) {}
 
-  public created(): void {
-    this.ctrl = this.$controller;
-  }
-
   public attaching(initiator: IHydratedController, parent: IHydratedController, f: LifecycleFlags): void | Promise<void> {
     let view: ISyntheticView | undefined;
-    const swapId = this.swapId++;
+    const ctrl = this.$controller;
+    const swapId = this._swapId++;
     /**
      * returns true when
      * 1. entering deactivation of the [if] itself
      * 2. new swap has started since this change
      */
-    const isCurrent = () => !this.wantsDeactivate && this.swapId === swapId + 1;
+    const isCurrent = () => !this._wantsDeactivate && this._swapId === swapId + 1;
     return onResolve(this.pending, () => {
       if (!isCurrent()) {
         return;
@@ -78,7 +74,7 @@ export class If implements ICustomAttributeViewModel {
 
       // Promise return values from user VM hooks are awaited by the initiator
       this.pending = onResolve(
-        view.activate(initiator, this.ctrl, f, this.ctrl.scope),
+        view.activate(initiator, ctrl, f, ctrl.scope),
         () => {
           if (isCurrent()) {
             this.pending = void 0;
@@ -90,17 +86,17 @@ export class If implements ICustomAttributeViewModel {
   }
 
   public detaching(initiator: IHydratedController, parent: IHydratedParentController, flags: LifecycleFlags): void | Promise<void> {
-    this.wantsDeactivate = true;
+    this._wantsDeactivate = true;
     return onResolve(this.pending, () => {
-      this.wantsDeactivate = false;
+      this._wantsDeactivate = false;
       this.pending = void 0;
       // Promise return values from user VM hooks are awaited by the initiator
-      void this.view?.deactivate(initiator, this.ctrl, flags);
+      void this.view?.deactivate(initiator, this.$controller, flags);
     });
   }
 
   public valueChanged(newValue: unknown, oldValue: unknown, f: LifecycleFlags): void | Promise<void> {
-    if (!this.ctrl.isActive) {
+    if (!this.$controller.isActive) {
       return;
     }
     // change scenarios:
@@ -115,17 +111,18 @@ export class If implements ICustomAttributeViewModel {
     }
     this.work.start();
     const currView = this.view;
-    const swapId = this.swapId++;
+    const ctrl = this.$controller;
+    const swapId = this._swapId++;
     /**
      * returns true when
      * 1. entering deactivation of the [if] itself
      * 2. new swap has started since this change
      */
-    const isCurrent = () => !this.wantsDeactivate && this.swapId === swapId + 1;
+    const isCurrent = () => !this._wantsDeactivate && this._swapId === swapId + 1;
     let view: ISyntheticView | undefined;
     return onResolve(onResolve(this.pending,
       () => this.pending = onResolve(
-        currView?.deactivate(currView, this.ctrl, f),
+        currView?.deactivate(currView, ctrl, f),
         () => {
           if (!isCurrent()) {
             return;
@@ -150,7 +147,7 @@ export class If implements ICustomAttributeViewModel {
           //       instead of always the if
           view.setLocation(this.location);
           return onResolve(
-            view.activate(view, this.ctrl, f, this.ctrl.scope),
+            view.activate(view, ctrl, f, ctrl.scope),
             () => {
               if (isCurrent()) {
                 this.pending = void 0;
@@ -180,10 +177,11 @@ export class If implements ICustomAttributeViewModel {
 templateController('if')(If);
 
 export class Else {
+  public static inject = [IViewFactory];
   public readonly id: number = nextId('au$component');
 
   public constructor(
-    @IViewFactory private readonly factory: IViewFactory,
+    private readonly factory: IViewFactory,
   ) {}
 
   public link(

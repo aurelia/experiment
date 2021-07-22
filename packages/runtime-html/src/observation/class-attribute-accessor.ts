@@ -46,7 +46,7 @@ export class ClassAttributeAccessor implements IAccessor {
 
       // Get strings split on a space not including empties
       if (classesToAdd.length > 0) {
-        this.addClassesAndUpdateIndex(classesToAdd);
+        this._addClassesAndUpdateIndex(classesToAdd);
       }
 
       this.version += 1;
@@ -72,7 +72,7 @@ export class ClassAttributeAccessor implements IAccessor {
     }
   }
 
-  private addClassesAndUpdateIndex(classes: string[]) {
+  private _addClassesAndUpdateIndex(classes: string[]) {
     const node = this.obj;
     for (let i = 0, ii = classes.length; i < ii; i++) {
       const className = classes[i];
